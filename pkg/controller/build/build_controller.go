@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -99,6 +100,82 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 
 	// Watch for changes to primary resource Build
 	err = c.Watch(&source.Kind{Type: &build.Build{}}, &handler.EnqueueRequestForObject{}, pred)
+
+	preSecret := predicate.Funcs{
+
+		// Only filter events where the secret have the Build specific annotation
+		CreateFunc: func(e event.CreateEvent) bool {
+			objectAnnotations := e.Meta.GetAnnotations()
+			if _, ok := buildSecretRefAnnotationExist(objectAnnotations); ok {
+				return true
+			}
+			return false
+		},
+
+		// Only filter events where the secret have the Build specific annotation,
+		// but only if the Build specific annotation changed
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAnnotations := e.MetaOld.GetAnnotations()
+			newAnnotations := e.MetaNew.GetAnnotations()
+
+			_, oldBuildKey := buildSecretRefAnnotationExist(oldAnnotations)
+			if _, newBuildKey := buildSecretRefAnnotationExist(newAnnotations); newBuildKey {
+				if oldBuildKey != newBuildKey {
+					return true
+				}
+			}
+			return false
+		},
+
+		// Only filter events where the secret have the Build specific annotation
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			objectAnnotations := e.Meta.GetAnnotations()
+			if _, ok := buildSecretRefAnnotationExist(objectAnnotations); ok {
+				return true
+			}
+			return false
+		},
+	}
+
+	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(o handler.MapObject) []reconcile.Request {
+
+			secret := o.Object.(*corev1.Secret)
+
+			buildList := &build.BuildList{}
+
+			// List all builds in the namespace of the current secret
+			if err := mgr.GetClient().List(ctx, buildList, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
+				// Avoid entering into the Reconcile space
+				return []reconcile.Request{}
+			}
+
+			if len(buildList.Items) == 0 {
+				// Avoid entering into the Reconcile space
+				return []reconcile.Request{}
+			}
+
+			// Only enter the Reconcile space if the secret is referenced on
+			// any Build in the same namespaces
+			for _, build := range buildList.Items {
+				if build.Spec.Output.SecretRef != nil {
+					if build.Spec.Output.SecretRef.Name == secret.Name {
+						return []reconcile.Request{
+							{
+								NamespacedName: types.NamespacedName{
+									Name:      build.Name,
+									Namespace: build.Namespace,
+								},
+							},
+						}
+					}
+				}
+			}
+			// Avoid entering into the Reconcile space
+			return []reconcile.Request{}
+		}),
+	}, preSecret)
+
 	if err != nil {
 		return err
 	}
@@ -164,8 +241,11 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	if len(secretNames) > 0 {
 		if err := r.validateSecrets(ctx, secretNames, b.Namespace); err != nil {
 			b.Status.Reason = err.Error()
-			updateErr := r.client.Status().Update(ctx, b)
-			return reconcile.Result{}, fmt.Errorf("errors: %v %v", err, updateErr)
+			_ = r.client.Status().Update(ctx, b)
+			// The Secret Resource watcher will Reconcile again once the missing
+			// secret is created, therefore no need to return an error and enter on an infinite
+			// reconciliation
+			return reconcile.Result{}, nil
 		}
 	}
 
@@ -275,7 +355,6 @@ func (r *ReconcileBuild) validateClusterBuildStrategy(ctx context.Context, n str
 	}
 	return nil
 }
-
 func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames []string, ns string) error {
 	list := &corev1.SecretList{}
 
@@ -392,4 +471,11 @@ func (r *ReconcileBuild) retrieveBuildRunsfromBuild(ctx context.Context, b *buil
 // order in the slice
 func removeOwnerReferenceByIndex(references []metav1.OwnerReference, i int) []metav1.OwnerReference {
 	return append(references[:i], references[i+1:]...)
+}
+
+func buildSecretRefAnnotationExist(annotation map[string]string) (string, bool) {
+	if val, ok := annotation[build.AnnotationBuildRefSecret]; ok {
+		return val, true
+	}
+	return "", false
 }
