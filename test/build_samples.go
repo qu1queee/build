@@ -111,6 +111,22 @@ spec:
       name: fake-secret
 `
 
+// todo
+const BuildTODO = `
+apiVersion: build.dev/v1alpha1
+kind: Build
+spec:
+  source:
+    url: "https://github.com/sbose78/taxi"
+  strategy:
+    kind: ClusterBuildStrategy
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/example/buildpacks-app
+    credentials:
+      name: foo-secret
+  timeout: 5s
+`
+
 // BuildCBSWithShortTimeOut defines a Build with a
 // ClusterBuildStrategy and a short timeout
 const BuildCBSWithShortTimeOut = `
