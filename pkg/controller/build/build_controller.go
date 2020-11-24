@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -98,52 +99,87 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 	}
 
 	// TODO:
-	// We need to add a Watcher for secrets and define on which EVENTS of that secret we
-	// should reconcile
+	// The approach assumes a secret contains an annotation with the key build.build.dev/build,
+	// the value is still unknown
 	// Also keep in mind performance, because we will be watching for all secrets in all namespaces?
 
 	// Watch for changes to primary resource Build
 	err = c.Watch(&source.Kind{Type: &build.Build{}}, &handler.EnqueueRequestForObject{}, pred)
 
 	preSecret := predicate.Funcs{
-		// Check if this secret has been deleted, if it's true, will return true
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return !e.DeleteStateUnknown
-		},
-		UpdateFunc:  nil,
 
+		// Only filter events where the secret have an specific annotation
+		// TODO simplify annotation validation in external func
+		CreateFunc: func(e event.CreateEvent) bool {
+			objectAnnotations := e.Meta.GetAnnotations()
+			if _, ok := objectAnnotations["build.build.dev/build"]; ok {
+				return true
+			}
+			return false
+		},
+
+		// Filter out update events, we are not interested on them for now.
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return false
+		},
+
+		// Only filter events where the secret have an specific annotation
+		// TODO simplify annotation validation in external func
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			objectAnnotations := e.Meta.GetAnnotations()
+			if _, ok := objectAnnotations["build.build.dev/build"]; ok {
+				return true
+			}
+			return false
+		},
 	}
 	// Watch all secrets
+	// TODO: The Watch should only filter if the request have a well known Build.
 	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestsFromMapFunc{
+		// Here we just get events on secrets that have an specific annotation, as seen in
+		// preSecret definition
+		// In here we should to an extra filtering, to avoid reconciling on
+		// secrets that are not associated to any Build
 		ToRequests: handler.ToRequestsFunc(func(o handler.MapObject) []reconcile.Request {
-			namespacedBuildObject := client.ObjectKey{}
+
 			secret := o.Object.(*corev1.Secret)
 
-			secretNamespace := secret.Namespace
-			list := &build.BuildList{}
+			buildList := &build.BuildList{}
 
-			// List all builds in the namespace of deleted secret
-			if err := mgr.GetClient().List(ctx, list, &client.ListOptions{Namespace: secretNamespace}); err != nil {
-				return []reconcile.Request{}
-			}
-			if len(list.Items) == 0 {
+			// List all builds in the namespace of the current secret
+			if err := mgr.GetClient().List(ctx, buildList, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
+				// Avoid entering into the Reconcile space
 				return []reconcile.Request{}
 			}
 
-			if len(list.Items) > 0 {
-				for _, b := range list.Items {
-					if (b.Spec.BuilderImage != nil && b.Spec.BuilderImage.SecretRef != nil) || b.Spec.Source.SecretRef != nil || b.Spec.Output.SecretRef != nil {
-						namespacedBuildObject.Name = b.Name
-						namespacedBuildObject.Namespace = b.Namespace
-					} else {
-						return []reconcile.Request{}
+			if len(buildList.Items) == 0 {
+				// Avoid entering into the Reconcile space
+				return []reconcile.Request{}
+			}
+
+			// We loop on all Builds in the current secret namespace
+			// For now, lets just concentrate on the secrets for container registries
+			// If a Build referenced output secret matches our secret, then we reconcile
+			// Important: We queue a Reconcile around the Build object, not the Secret object
+			// The above is important because in the  Reconcile() func we will working around
+			// the Build instance, not around a Secret instance.
+			// TODO: This filter layer should address some of the performance concerns around listing secrets
+			for _, build := range buildList.Items {
+				if build.Spec.Output.SecretRef != nil {
+					if build.Spec.Output.SecretRef.Name == secret.Name {
+						return []reconcile.Request{
+							{
+								NamespacedName: types.NamespacedName{
+									Name:      build.Name,
+									Namespace: build.Namespace,
+								},
+							},
+						}
 					}
 				}
 			}
-
-			return []reconcile.Request{
-				{namespacedBuildObject},
-			}
+			// Avoid entering into the Reconcile space
+			return []reconcile.Request{}
 		}),
 	}, preSecret)
 
