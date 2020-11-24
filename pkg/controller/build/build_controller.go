@@ -99,6 +99,49 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 
 	// Watch for changes to primary resource Build
 	err = c.Watch(&source.Kind{Type: &build.Build{}}, &handler.EnqueueRequestForObject{}, pred)
+
+	preSecret := predicate.Funcs{
+		// Check if this secret has been deleted, if it's true, will return true
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return !e.DeleteStateUnknown
+		},
+		UpdateFunc:  nil,
+
+	}
+	// Watch all secrets
+	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(o handler.MapObject) []reconcile.Request {
+			namespacedBuildObject := client.ObjectKey{}
+			secret := o.Object.(*corev1.Secret)
+
+			secretNamespace := secret.Namespace
+			list := &build.BuildList{}
+
+			// List all builds in the namespace of deleted secret
+			if err := mgr.GetClient().List(ctx, list, &client.ListOptions{Namespace: secretNamespace}); err != nil {
+				return []reconcile.Request{}
+			}
+			if len(list.Items) == 0 {
+				return []reconcile.Request{}
+			}
+
+			if len(list.Items) > 0 {
+				for _, b := range list.Items {
+					if (b.Spec.BuilderImage != nil && b.Spec.BuilderImage.SecretRef != nil) || b.Spec.Source.SecretRef != nil || b.Spec.Output.SecretRef != nil {
+						namespacedBuildObject.Name = b.Name
+						namespacedBuildObject.Namespace = b.Namespace
+					} else {
+						return []reconcile.Request{}
+					}
+				}
+			}
+
+			return []reconcile.Request{
+				{namespacedBuildObject},
+			}
+		}),
+	}, preSecret)
+
 	if err != nil {
 		return err
 	}
