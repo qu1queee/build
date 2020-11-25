@@ -98,48 +98,46 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 		},
 	}
 
-	// TODO:
-	// The approach assumes a secret contains an annotation with the key build.build.dev/build,
-	// the value is still unknown
-	// Also keep in mind performance, because we will be watching for all secrets in all namespaces?
-
 	// Watch for changes to primary resource Build
 	err = c.Watch(&source.Kind{Type: &build.Build{}}, &handler.EnqueueRequestForObject{}, pred)
 
 	preSecret := predicate.Funcs{
 
-		// Only filter events where the secret have an specific annotation
-		// TODO simplify annotation validation in external func
+		// Only filter events where the secret have the Build specific annotation
 		CreateFunc: func(e event.CreateEvent) bool {
 			objectAnnotations := e.Meta.GetAnnotations()
-			if _, ok := objectAnnotations["build.build.dev/build"]; ok {
+			if _, ok := buildSecretRefAnnotationExist(objectAnnotations); ok {
 				return true
 			}
 			return false
 		},
 
-		// Filter out update events, we are not interested on them for now.
+		// Only filter events where the secret have the Build specific annotation,
+		// but only if the Build specific annotation changed
 		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAnnotations := e.MetaOld.GetAnnotations()
+			newAnnotations := e.MetaNew.GetAnnotations()
+
+			_, oldBuildKey := buildSecretRefAnnotationExist(oldAnnotations)
+			if _, newBuildKey := buildSecretRefAnnotationExist(newAnnotations); newBuildKey {
+				if oldBuildKey != newBuildKey {
+					return true
+				}
+			}
 			return false
 		},
 
-		// Only filter events where the secret have an specific annotation
-		// TODO simplify annotation validation in external func
+		// Only filter events where the secret have the Build specific annotation
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			objectAnnotations := e.Meta.GetAnnotations()
-			if _, ok := objectAnnotations["build.build.dev/build"]; ok {
+			if _, ok := buildSecretRefAnnotationExist(objectAnnotations); ok {
 				return true
 			}
 			return false
 		},
 	}
-	// Watch all secrets
-	// TODO: The Watch should only filter if the request have a well known Build.
+
 	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestsFromMapFunc{
-		// Here we just get events on secrets that have an specific annotation, as seen in
-		// preSecret definition
-		// In here we should to an extra filtering, to avoid reconciling on
-		// secrets that are not associated to any Build
 		ToRequests: handler.ToRequestsFunc(func(o handler.MapObject) []reconcile.Request {
 
 			secret := o.Object.(*corev1.Secret)
@@ -157,13 +155,8 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 				return []reconcile.Request{}
 			}
 
-			// We loop on all Builds in the current secret namespace
-			// For now, lets just concentrate on the secrets for container registries
-			// If a Build referenced output secret matches our secret, then we reconcile
-			// Important: We queue a Reconcile around the Build object, not the Secret object
-			// The above is important because in the  Reconcile() func we will working around
-			// the Build instance, not around a Secret instance.
-			// TODO: This filter layer should address some of the performance concerns around listing secrets
+			// Only enter the Reconcile space if the secret is referenced on
+			// any Build in the same namespaces
 			for _, build := range buildList.Items {
 				if build.Spec.Output.SecretRef != nil {
 					if build.Spec.Output.SecretRef.Name == secret.Name {
@@ -248,8 +241,11 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	if len(secretNames) > 0 {
 		if err := r.validateSecrets(ctx, secretNames, b.Namespace); err != nil {
 			b.Status.Reason = err.Error()
-			updateErr := r.client.Status().Update(ctx, b)
-			return reconcile.Result{}, fmt.Errorf("errors: %v %v", err, updateErr)
+			_ = r.client.Status().Update(ctx, b)
+			// The Secret Resource watcher will Reconcile again once the missing
+			// secret is created, therefore no need to return an error and enter on an infinite
+			// reconciliation
+			return reconcile.Result{}, nil
 		}
 	}
 
@@ -359,7 +355,6 @@ func (r *ReconcileBuild) validateClusterBuildStrategy(ctx context.Context, n str
 	}
 	return nil
 }
-
 func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames []string, ns string) error {
 	list := &corev1.SecretList{}
 
@@ -477,3 +472,25 @@ func (r *ReconcileBuild) retrieveBuildRunsfromBuild(ctx context.Context, b *buil
 func removeOwnerReferenceByIndex(references []metav1.OwnerReference, i int) []metav1.OwnerReference {
 	return append(references[:i], references[i+1:]...)
 }
+
+func buildSecretRefAnnotationExist(annotation map[string]string) (string, bool) {
+	if val, ok := annotation[build.AnnotationBuildRefSecret]; ok {
+		return val, true
+	}
+	return "", false
+}
+
+// func generateRefSecretAnnotation() []byte {
+// 	return []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, build.AnnotationBuildRefSecret))
+// }
+
+// func (r *ReconcileBuild) updateSecretAnnotation(ctx context.Context, secret *corev1.Secret) error {
+// 	spew.Dump(secret)
+// 	if _, ok := buildSecretRefAnnotationExist(secret.Annotations); !ok {
+// 		if err := r.client.Patch(ctx, secret, client.RawPatch(types.StrategicMergePatchType, generateRefSecretAnnotation())); err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }

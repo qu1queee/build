@@ -7,8 +7,11 @@ package utils
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 )
@@ -53,4 +56,67 @@ func (t *TestBuild) PatchBuildWithPatchType(buildName string, data []byte, pt ty
 		return nil, err
 	}
 	return b, nil
+}
+
+// GetBuildTillStartTime ...
+func (t *TestBuild) GetBuildTillValidation(name string) (*v1alpha1.Build, error) {
+
+	var (
+		pollBuildTillRegistration = func() (bool, error) {
+
+			bInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
+
+			buildRun, err := bInterface.Get(context.TODO(), name, metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+			// TODO: we might improve the conditional here
+			if buildRun.Status.Registered != "" {
+				return true, nil
+			}
+
+			return false, nil
+		}
+	)
+
+	brInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
+
+	err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration)
+	if err != nil {
+		return nil, err
+	}
+
+	return brInterface.Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+// GetBuildTillRegistration ...
+// TODO: improve func around names and content
+func (t *TestBuild) GetBuildTillRegistration(name string, condition corev1.ConditionStatus) (*v1alpha1.Build, error) {
+
+	var (
+		pollBuildTillRegistration = func() (bool, error) {
+
+			bInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
+
+			buildRun, err := bInterface.Get(context.TODO(), name, metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+			// TODO: we might improve the conditional here
+			if buildRun.Status.Registered == condition {
+				return true, nil
+			}
+
+			return false, nil
+		}
+	)
+
+	brInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
+
+	err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration)
+	if err != nil {
+		return nil, err
+	}
+
+	return brInterface.Get(context.TODO(), name, metav1.GetOptions{})
 }

@@ -111,8 +111,8 @@ spec:
       name: fake-secret
 `
 
-// todo
-const BuildTODO = `
+// BuildWithOutputRefSecret ...
+const BuildWithOutputRefSecret = `
 apiVersion: build.dev/v1alpha1
 kind: Build
 spec:
