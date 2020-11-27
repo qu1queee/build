@@ -2,14 +2,11 @@ package integration_test
 
 import (
 	"fmt"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/test"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Integration tests Build and referenced Secrets", func() {
@@ -45,17 +42,9 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			)
 			Expect(err).To(BeNil())
 
-			sampleSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "foo-secret",
-				},
-			}
+			sampleSecret := tb.Catalog.SecretWithAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
-
-			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
-			_, err = tb.PatchSecret("foo-secret", data)
-			Expect(err).To(BeNil())
 
 			Expect(tb.CreateBuild(buildObject)).To(BeNil())
 
@@ -64,13 +53,13 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(err).To(BeNil())
 
 			// delete a secret
-			Expect(tb.DeleteSecret("foo-secret")).To(BeNil())
+			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
 
 			// assert that the validation happened one more time
 			buildObject, err := tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "foo-secret")))
+			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
 
 		})
 
@@ -92,21 +81,12 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
 			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
 
-			sampleSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "fake-secret",
-				},
-			}
+			sampleSecret := tb.Catalog.SecretWithAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
 			// generate resources
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
 
-			// we modify the annotation so automatic delete does not take place
-			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
-			_, err = tb.PatchSecret("fake-secret", data)
-			Expect(err).To(BeNil())
-
-			// // assert that the validation happened one more time
+			// assert that the validation happened one more time
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
@@ -127,13 +107,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			)
 			Expect(err).To(BeNil())
 
-			// TODO: move this to the Catalog
-			// TODO: secret name should be a variable in this test
-			sampleSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "foo-secret",
-				},
-			}
+			sampleSecret := tb.Catalog.SecretWithoutAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
 			// generate resources
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
@@ -144,45 +118,80 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(err).To(BeNil())
 
 			// delete a secret
-			Expect(tb.DeleteSecret("foo-secret")).To(BeNil())
+			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
 
 			// assert that the validation happened one more time
 			buildObject, err := tb.GetBuild(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
 		})
-	})
 
-	Context("when the build reconciles on secret events", func() {
-		It("should avoid reconciling a secret update that is not related to our annotation", func() {
+		It("should not validate when a missing secret is recreated without annotation", func() {
+			// populate Build related vars
+			buildName := BUILD + tb.Namespace
+			buildObject, err = tb.Catalog.LoadBuildWithNameAndStrategy(
+				buildName,
+				STRATEGY+tb.Namespace,
+				[]byte(test.BuildCBSMinimalWithFakeSecret),
+			)
+			Expect(err).To(BeNil())
 
-			// TODO: We need to wait until the controller is up, we need to find a way to do that, sleep
-			// is not ideal
-			time.Sleep(time.Second * 10)
+			Expect(tb.CreateBuild(buildObject)).To(BeNil())
 
-			sampleSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "foo-secret",
-				},
-			}
+			// wait until the Build finish the validation
+			buildObject, err := tb.GetBuildTillValidation(buildName)
+			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
+			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
+
+			sampleSecret := tb.Catalog.SecretWithoutAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
+
+			// generate resources
+			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
+
+			// // assert that the validation happened one more time
+			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
+			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
+			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
+
+		})
+
+		It("should validate when a missing secret is recreated with annotation", func() {
+			// populate Build related vars
+			buildName := BUILD + tb.Namespace
+			buildObject, err = tb.Catalog.LoadBuildWithNameAndStrategy(
+				buildName,
+				STRATEGY+tb.Namespace,
+				[]byte(test.BuildCBSMinimalWithFakeSecret),
+			)
+			Expect(err).To(BeNil())
+
+			Expect(tb.CreateBuild(buildObject)).To(BeNil())
+
+			// wait until the Build finish the validation
+			buildObject, err := tb.GetBuildTillValidation(buildName)
+			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
+			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
+
+			sampleSecret := tb.Catalog.SecretWithoutAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
 			// generate resources
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
 
 			// we modify the annotation so automatic delete does not take place
 			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
-			_, err = tb.PatchSecret("foo-secret", data)
+			_, err = tb.PatchSecret(buildObject.Spec.Output.SecretRef.Name, data)
 			Expect(err).To(BeNil())
 
-			// we modify the annotation so automatic delete does not take place
-			data = []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
-			_, err = tb.PatchSecret("foo-secret", data)
+			// // assert that the validation happened one more time
+			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
+			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
 
-		})
-		It("should only reconcile on create events when the secret have the annotations", func() {
-		})
-		It("should only reconcile on delete events when the secret have the annotations", func() {
 		})
 	})
 })
+
