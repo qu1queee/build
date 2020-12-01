@@ -202,4 +202,3 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 		})
 	})
 })
-
