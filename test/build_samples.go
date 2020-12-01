@@ -111,7 +111,8 @@ spec:
       name: fake-secret
 `
 
-// BuildWithOutputRefSecret ...
+// BuildWithOutputRefSecret defines a Build with a
+// referenced secret under spec.output
 const BuildWithOutputRefSecret = `
 apiVersion: build.dev/v1alpha1
 kind: Build

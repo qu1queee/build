@@ -24,7 +24,7 @@ func (t *TestBuild) CreateSecret(secret *corev1.Secret) error {
 	return nil
 }
 
-// DeleteSecret ...
+// DeleteSecret removes the desired secret
 func (t *TestBuild) DeleteSecret(name string) error {
 	client := t.Clientset.CoreV1().Secrets(t.Namespace)
 	if err := client.Delete(context.TODO(), name, metav1.DeleteOptions{}); err != nil {
@@ -33,12 +33,13 @@ func (t *TestBuild) DeleteSecret(name string) error {
 	return nil
 }
 
-// PatchSecret ...
+// PatchSecret patches a secret based on name and with the provided data.
+// It used the merge type strategy
 func (t *TestBuild) PatchSecret(name string, data []byte) (*corev1.Secret, error) {
 	return t.PatchSecretWithPatchType(name, data, types.MergePatchType)
 }
 
-// PatchSecretWithPatchType ...
+// PatchSecretWithPatchType patches a secret with a desire data and patch strategy
 func (t *TestBuild) PatchSecretWithPatchType(name string, data []byte, pt types.PatchType) (*corev1.Secret, error) {
 	secInterface := t.Clientset.CoreV1().Secrets(t.Namespace)
 	b, err := secInterface.Patch(context.TODO(), name, pt, data, metav1.PatchOptions{})

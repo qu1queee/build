@@ -35,8 +35,8 @@ type Catalog struct{}
 func (c *Catalog) SecretWithAnnotation(name string, ns string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Namespace: ns,
+			Name:        name,
+			Namespace:   ns,
 			Annotations: map[string]string{build.AnnotationBuildRefSecret: "true"},
 		},
 	}
@@ -46,7 +46,7 @@ func (c *Catalog) SecretWithAnnotation(name string, ns string) *corev1.Secret {
 func (c *Catalog) SecretWithoutAnnotation(name string, ns string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
 			Namespace: ns,
 		},
 	}
@@ -198,7 +198,7 @@ func (c *Catalog) FakeSecretList() corev1.SecretList {
 	}
 }
 
-// FakeSecretListInNamespace to support test
+// FakeNoSecretListInNamespace returns an empty secret list
 func (c *Catalog) FakeNoSecretListInNamespace() corev1.SecretList {
 	return corev1.SecretList{
 		Items: []corev1.Secret{},

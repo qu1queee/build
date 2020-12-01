@@ -480,17 +480,3 @@ func buildSecretRefAnnotationExist(annotation map[string]string) (string, bool) 
 	return "", false
 }
 
-// func generateRefSecretAnnotation() []byte {
-// 	return []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, build.AnnotationBuildRefSecret))
-// }
-
-// func (r *ReconcileBuild) updateSecretAnnotation(ctx context.Context, secret *corev1.Secret) error {
-// 	spew.Dump(secret)
-// 	if _, ok := buildSecretRefAnnotationExist(secret.Annotations); !ok {
-// 		if err := r.client.Patch(ctx, secret, client.RawPatch(types.StrategicMergePatchType, generateRefSecretAnnotation())); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }

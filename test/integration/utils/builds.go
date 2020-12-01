@@ -58,7 +58,9 @@ func (t *TestBuild) PatchBuildWithPatchType(buildName string, data []byte, pt ty
 	return b, nil
 }
 
-// GetBuildTillStartTime ...
+// GetBuildTillValidation polls until a Build gets a validation and updates
+// it´s registered field. If timeout is reached or an error is found, it will
+// return with an error
 func (t *TestBuild) GetBuildTillValidation(name string) (*v1alpha1.Build, error) {
 
 	var (
@@ -89,8 +91,9 @@ func (t *TestBuild) GetBuildTillValidation(name string) (*v1alpha1.Build, error)
 	return brInterface.Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-// GetBuildTillRegistration ...
-// TODO: improve func around names and content
+// GetBuildTillRegistration polls until a Build gets a desired validation and updates
+// it´s registered field. If timeout is reached or an error is found, it will
+// return with an error
 func (t *TestBuild) GetBuildTillRegistration(name string, condition corev1.ConditionStatus) (*v1alpha1.Build, error) {
 
 	var (

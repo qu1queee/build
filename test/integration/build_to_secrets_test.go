@@ -1,7 +1,11 @@
+// Copyright The Shipwright Contributors
+//
+// SPDX-License-Identifier: Apache-2.0
 package integration_test
 
 import (
 	"fmt"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
@@ -49,14 +53,16 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(tb.CreateBuild(buildObject)).To(BeNil())
 
 			// wait until the Build finish the validation
-			_, err := tb.GetBuildTillValidation(buildName)
+			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
+			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
 
 			// assert that the validation happened one more time
-			buildObject, err := tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
+			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
 			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
@@ -91,7 +97,6 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
 			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
-
 		})
 	})
 
@@ -114,14 +119,16 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(tb.CreateBuild(buildObject)).To(BeNil())
 
 			// wait until the Build finish the validation
-			_, err := tb.GetBuildTillValidation(buildName)
+			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
+			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
 
 			// assert that the validation happened one more time
-			buildObject, err := tb.GetBuild(buildName)
+			buildObject, err = tb.GetBuild(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
 		})
@@ -182,6 +189,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 
 			// we modify the annotation so automatic delete does not take place
 			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
+
 			_, err = tb.PatchSecret(buildObject.Spec.Output.SecretRef.Name, data)
 			Expect(err).To(BeNil())
 
