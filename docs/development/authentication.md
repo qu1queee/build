@@ -23,27 +23,9 @@ The following document provides an introduction around the different authenticat
 
 There are two places where users might need to define authentication when building images. Authentication to a container registry is the most common one, but also users might have the need to define authentications for pulling source-code from Git. Overall, the authentication is done via the definion of [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) in which the require sensitive data will be stored.
 
-## Build Secrets Annotation
+# Build Secrets Annotation
 
-Users need to add an annotation `build.build.dev/referenced.secret: "true"` to a build secret so that build controller can decide if take a reconcile action when a secret event (`create`, `update` and `delete`) happens. Below ia a secret example with build annotation:
-```yaml
-apiVersion: v1
-data:
-  .dockerconfigjson: xxxxx
-kind: Secret
-metadata:
-  annotations:
-    build.build.dev/referenced.secret: "true"
-  name: secret-docker
-type: kubernetes.io/dockerconfigjson
-```
-This annotation will help us filter these secrets which are not related with build. That means if a secret doesn't have this annotation, then although event happens on this secret, build controller will not react it. So from a performance perspective, secret's annotation can make build controller's performance better.
-
-If you are using `kubectl` command create secrets, then you can first create build secret using `kubectl create secret` command and annotate this secret using `kubectl annotate secrets`. Below is an example:
-```yaml
-kubectl -n ${namespace} create secret docker-registry example-secret --docker-server=${docker-server} --docker-username="${username}" --docker-password="${password}" --docker-email=me@here.com
-kubectl -n ${namespace} annotate secrets example-secret build.build.dev/referenced.secret='true'
-```
+TBD
 
 ## Authentication for Git
 
@@ -108,6 +90,8 @@ apiVersion: build.dev/v1alpha1
 kind: Build
 metadata:
   name: buildah-golang-build
+  annotations:
+    build.build.dev/referenced.secret: "true"
 spec:
   source:
     url: git@gitlab.com:eduardooli/newtaxi.git
@@ -122,6 +106,8 @@ apiVersion: build.dev/v1alpha1
 kind: Build
 metadata:
   name: buildah-golang-build
+  annotations:
+    build.build.dev/referenced.secret: "true"
 spec:
   source:
     url: https://gitlab.com/eduardooli/newtaxi.git
@@ -159,6 +145,8 @@ apiVersion: build.dev/v1alpha1
 kind: Build
 metadata:
   name: buildah-golang-build
+  annotations:
+    build.build.dev/referenced.secret: "true"
   ...
   output:
     image: docker.io/foobar/sample:latest
