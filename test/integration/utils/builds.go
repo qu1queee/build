@@ -84,8 +84,7 @@ func (t *TestBuild) GetBuildTillValidation(name string) (*v1alpha1.Build, error)
 
 	brInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
 
-	err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration)
-	if err != nil {
+	if err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration); err != nil {
 		return nil, err
 	}
 
@@ -117,8 +116,7 @@ func (t *TestBuild) GetBuildTillRegistration(name string, condition corev1.Condi
 
 	brInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
 
-	err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration)
-	if err != nil {
+	if err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillRegistration); err != nil {
 		return nil, err
 	}
 
@@ -150,8 +148,7 @@ func (t *TestBuild) GetBuildTillReasonContainsSubstring(name string, partOfReaso
 
 	brInterface := t.BuildClientSet.BuildV1alpha1().Builds(t.Namespace)
 
-	err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillReasonContainsSubString)
-	if err != nil {
+	if err := wait.PollImmediate(t.Interval, t.TimeOut, pollBuildTillReasonContainsSubString); err != nil {
 		return nil, err
 	}
 

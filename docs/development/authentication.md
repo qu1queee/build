@@ -146,7 +146,7 @@ kubectl --namespace <YOUR_NAMESPACE> create secret docker-registry <CONTAINER_RE
   --docker-username=<USERNAME> \
   --docker-password=<PASSWORD> \
   --docker-email=me@here.com
-kubectl --namespace <YOUR_NAMESPACE> annotate secrets docker-registry build.build.dev/referenced.secret='true'
+kubectl --namespace <YOUR_NAMESPACE> annotate secrets <CONTAINER_REGISTRY_SECRET_NAME> build.build.dev/referenced.secret='true'
 ```
 
 _Notes:_ When generating a secret to access docker hub, the `REGISTRY_HOST` value should be `https://index.docker.io/v1/`, the username is the Docker ID.

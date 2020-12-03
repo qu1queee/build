@@ -118,9 +118,8 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 			oldAnnotations := e.MetaOld.GetAnnotations()
 			newAnnotations := e.MetaNew.GetAnnotations()
 
-			_, oldBuildKey := buildSecretRefAnnotationExist(oldAnnotations)
-			if _, newBuildKey := buildSecretRefAnnotationExist(newAnnotations); newBuildKey {
-				if oldBuildKey != newBuildKey {
+			if _, oldBuildKey := buildSecretRefAnnotationExist(oldAnnotations); !oldBuildKey {
+				if _, newBuildKey := buildSecretRefAnnotationExist(newAnnotations); newBuildKey {
 					return true
 				}
 			}
@@ -147,6 +146,7 @@ func add(ctx context.Context, mgr manager.Manager, r reconcile.Reconciler) error
 			// List all builds in the namespace of the current secret
 			if err := mgr.GetClient().List(ctx, buildList, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
 				// Avoid entering into the Reconcile space
+				ctxlog.Info(ctx, "unexpected error happens during list builds", err)
 				return []reconcile.Request{}
 			}
 
@@ -255,7 +255,9 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	if len(secretNames) > 0 {
 		if err := r.validateSecrets(ctx, secretNames, b.Namespace); err != nil {
 			b.Status.Reason = err.Error()
-			_ = r.client.Status().Update(ctx, b)
+			if updateErr := r.client.Status().Update(ctx, b); updateErr != nil {
+				return reconcile.Result{}, fmt.Errorf("errors: %v %v", err, updateErr)
+			}
 			// The Secret Resource watcher will Reconcile again once the missing
 			// secret is created, therefore no need to return an error and enter on an infinite
 			// reconciliation

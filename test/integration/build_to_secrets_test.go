@@ -187,6 +187,9 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 
 			// generate resources
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
+			// validate build status again
+			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
+			Expect(buildObject.Status.Reason).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
 
 			// we modify the annotation so automatic delete does not take place
 			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
