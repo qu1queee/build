@@ -35,10 +35,21 @@ import (
 	buildmetrics "github.com/shipwright-io/build/pkg/metrics"
 )
 
+// TODO:
+// - modify types for Build
+// - regenerate CRDS for Build
+// - We need to generate Constants for all types of errors
+// - Also fix the distinction of secrets paths when defining the above constants
+// - We need to deal with an error plus a message when validation fails
+// - We need to update unit and integration tests
+
 // succeedStatus default status for the Build CRD
-const succeedStatus string = "Succeeded"
-const namespace string = "namespace"
-const name string = "name"
+const (
+	succeedStatus               string = "Succeeded"
+	clusterBuildStrategyMissing string = "ClusterBuildStrategyMissing"
+	namespace                   string = "namespace"
+	name                        string = "name"
+)
 
 type setOwnerReferenceFunc func(owner, object metav1.Object, scheme *runtime.Scheme) error
 
@@ -404,6 +415,10 @@ func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames []stri
 		}
 	}
 
+	// secret from spec.source is missing
+	// secret from spec.output is missing
+	// secret from spec.builderimage is missing
+	// multiple secrets are missing
 	if len(missingSecrets) > 1 {
 		return fmt.Errorf("secrets %s do not exist", strings.Join(missingSecrets, ", "))
 	} else if len(missingSecrets) > 0 {
