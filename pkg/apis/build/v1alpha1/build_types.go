@@ -27,6 +27,12 @@ const (
 	// TODO: Not sure this is desired because we never stop reconciling if this
 	// Reason happens
 	SetOwnerReferenceFailed BuildReason = "SetOwnerReferenceFailed"
+
+	SpecSourceSecretRefNotFound  BuildReason = "SpecSourceSecretNotFound"
+	SpecOutputSecretRefNotFound  BuildReason = "SpecOutputSecretRefNotFound"
+	SpecRuntimeSecretRefNotFound BuildReason = "SpecRuntimeSecretRefNotFound"
+	MultipleSecretRefNotFound    BuildReason = "MultipleSecretRefNotFound"
+
 	// SecretsDoNotExist ...
 	// TODO: This will be replaced soon.
 	SecretsDoNotExist BuildReason = "SecretsDoNotExist"

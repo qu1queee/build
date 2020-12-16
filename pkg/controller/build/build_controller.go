@@ -252,20 +252,20 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	b.Status.Reason = build.SucceedStatus
 
 	// Validate if the referenced secrets exist in the namespace
-	var secretNames []string
+	secretRefMap := map[string]build.BuildReason{}
 	if b.Spec.Output.SecretRef != nil && b.Spec.Output.SecretRef.Name != "" {
-		secretNames = append(secretNames, b.Spec.Output.SecretRef.Name)
+		secretRefMap[b.Spec.Output.SecretRef.Name] = build.SpecOutputSecretRefNotFound
 	}
 	if b.Spec.Source.SecretRef != nil && b.Spec.Source.SecretRef.Name != "" {
-		secretNames = append(secretNames, b.Spec.Source.SecretRef.Name)
+		secretRefMap[b.Spec.Source.SecretRef.Name] = build.SpecSourceSecretRefNotFound
 	}
 	if b.Spec.BuilderImage != nil && b.Spec.BuilderImage.SecretRef != nil && b.Spec.BuilderImage.SecretRef.Name != "" {
-		secretNames = append(secretNames, b.Spec.BuilderImage.SecretRef.Name)
+		secretRefMap[b.Spec.BuilderImage.SecretRef.Name] = build.SpecRuntimeSecretRefNotFound
 	}
 
 	// Validate if the referenced secrets exist
-	if len(secretNames) > 0 {
-		if err := r.validateSecrets(ctx, secretNames, b); err != nil {
+	if len(secretRefMap) > 0 {
+		if err := r.validateSecrets(ctx, secretRefMap, b); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -388,40 +388,25 @@ func (r *ReconcileBuild) validateClusterBuildStrategy(ctx context.Context, b *bu
 	return nil
 }
 
-func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames []string, b *build.Build) error {
-	list := &corev1.SecretList{}
+func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames map[string]build.BuildReason, b *build.Build) error {
 
-	if err := r.client.List(
-		ctx,
-		list,
-		&client.ListOptions{
-			Namespace: b.Namespace,
-		},
-	); err != nil {
-		return err
-	}
-
-	var lookUp = map[string]bool{}
-	for _, secretName := range secretNames {
-		lookUp[secretName] = false
-	}
-	for _, secret := range list.Items {
-		lookUp[secret.Name] = true
-	}
-	var missingSecrets []string
-	for name, found := range lookUp {
-		if !found {
-			missingSecrets = append(missingSecrets, name)
+	missingSecrets := make([]string, len(secretNames))
+	secret := &corev1.Secret{}
+	for refSecret, secretType := range secretNames {
+		if err := r.client.Get(ctx, types.NamespacedName{Name: refSecret, Namespace: b.Namespace}, secret); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		} else if apierrors.IsNotFound(err) {
+			validationFailed = true
+			MarkBuildStatus(b, secretType, fmt.Sprintf("referenced secret %s not found", refSecret))
+			missingSecrets = append(missingSecrets, refSecret)
 		}
 	}
 
 	if len(missingSecrets) > 1 {
-		validationFailed = true
-		MarkBuildStatus(b, build.SecretsDoNotExist, fmt.Sprintf("secrets %s do not exist", strings.Join(missingSecrets, ", ")))
-	} else if len(missingSecrets) > 0 {
-		validationFailed = true
-		MarkBuildStatus(b, build.SecretDoesNotExist, fmt.Sprintf("secret %s does not exist", missingSecrets[0]))
+		// fmt.Sprintf("missing secrets are %s", strings.Join(missingSecrets, ",")
+		MarkBuildStatus(b, build.MultipleSecretRefNotFound, fmt.Sprintf("missing secrets are %s", strings.Join(missingSecrets, ",")))
 	}
+
 	return nil
 }
 
