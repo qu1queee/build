@@ -9,6 +9,42 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// BuildReason is a type used for populating the
+// Build Status.Reason field
+type BuildReason string
+
+const (
+	// SucceedStatus indicates that all validations Succeeded
+	SucceedStatus BuildReason = "Succeeded"
+	// BuildStrategyNotFound indicates that a namespaced-scope strategy
+	// was not found in the namespace
+	BuildStrategyNotFound BuildReason = "BuildStrategyNotFound"
+	// ClusterBuildStrategyNotFound indicates that a cluster-scope strategy
+	// was not found
+	ClusterBuildStrategyNotFound BuildReason = "ClusterBuildStrategyNotFound"
+	// SetOwnerReferenceFailed indicates that setting ownerReferences between
+	// a Build and a BuildRun failed.
+	// TODO: Not sure this is desired because we never stop reconciling if this
+	// Reason happens
+	SetOwnerReferenceFailed BuildReason = "SetOwnerReferenceFailed"
+
+	SpecSourceSecretRefNotFound  BuildReason = "SpecSourceSecretNotFound"
+	SpecOutputSecretRefNotFound  BuildReason = "SpecOutputSecretRefNotFound"
+	SpecRuntimeSecretRefNotFound BuildReason = "SpecRuntimeSecretRefNotFound"
+	MultipleSecretRefNotFound    BuildReason = "MultipleSecretRefNotFound"
+
+	// SecretsDoNotExist ...
+	// TODO: This will be replaced soon.
+	SecretsDoNotExist BuildReason = "SecretsDoNotExist"
+	// SecretDoesNotExist ...
+	// TODO: This will be replaced soon.
+	SecretDoesNotExist BuildReason = "SecretDoesNotExist"
+	// RuntimePathsCanNotBeEmpty indicates that the spec.runtime feature is used
+	// but the paths were not specified, which are mandatory.
+	// TODO: Can we make this one mandatory via the runtime object fields definition?
+	RuntimePathsCanNotBeEmpty BuildReason = "RuntimePathsCanNotBeEmpty"
+)
+
 const (
 	// LabelBuild is a label key for defining the build name
 	LabelBuild = "build.build.dev/name"
@@ -129,7 +165,7 @@ type BuildStatus struct {
 
 	// The reason of the registered Build, it's an one-word camelcase
 	// +optional
-	Reason string `json:"reason,omitempty"`
+	Reason BuildReason `json:"reason,omitempty"`
 
 	// The message of the registered Build, either an error or succeed message
 	// +optional
