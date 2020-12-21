@@ -41,6 +41,15 @@ func (c *Catalog) SecretWithAnnotation(name string, ns string) *corev1.Secret {
 	}
 }
 
+// Secret gives you a secret with build annotation
+func (c *Catalog) Secret(name string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+}
+
 // SecretWithoutAnnotation gives you a secret without build annotation
 func (c *Catalog) SecretWithoutAnnotation(name string, ns string) *corev1.Secret {
 	return &corev1.Secret{
@@ -51,8 +60,8 @@ func (c *Catalog) SecretWithoutAnnotation(name string, ns string) *corev1.Secret
 	}
 }
 
-// BuildWithClusterBuildStrategy gives you an specific Build CRD
-func (c *Catalog) BuildWithClusterBuildStrategy(name string, ns string, strategyName string, secretName string) *build.Build {
+// DefaultBuildWithClusterBuildStrategy gives you an specific Build CRD
+func (c *Catalog) DefaultBuildWithClusterBuildStrategy(name string, ns string, strategyName string, secretName string) *build.Build {
 	buildStrategy := build.ClusterBuildStrategyKind
 	return &build.Build{
 		ObjectMeta: metav1.ObjectMeta{
@@ -72,6 +81,26 @@ func (c *Catalog) BuildWithClusterBuildStrategy(name string, ns string, strategy
 				SecretRef: &corev1.LocalObjectReference{
 					Name: secretName,
 				},
+			},
+		},
+	}
+}
+
+// BuildWithClusterBuildStrategy gives you an specific Build CRD
+func (c *Catalog) BuildWithClusterBuildStrategy(name string, ns string, strategyName string) *build.Build {
+	buildStrategy := build.ClusterBuildStrategyKind
+	return &build.Build{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: build.BuildSpec{
+			Source: build.GitSource{
+				URL: "foobar",
+			},
+			StrategyRef: &build.StrategyRef{
+				Name: strategyName,
+				Kind: &buildStrategy,
 			},
 		},
 	}
@@ -220,7 +249,7 @@ func (c *Catalog) SecretList(name string) corev1.SecretList {
 // StubFunc is used to simulate the status of the Build
 // after a .Status().Update() call in the controller. This
 // receives a parameter to return an specific status state
-func (c *Catalog) StubFunc(status corev1.ConditionStatus, reason string, message string) func(context context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
+func (c *Catalog) StubFunc(status corev1.ConditionStatus, reason build.BuildReason, message string) func(context context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
 	return func(context context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
 		switch object := object.(type) {
 		case *build.Build:

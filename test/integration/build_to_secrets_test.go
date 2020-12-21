@@ -57,7 +57,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
@@ -66,8 +66,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Output.SecretRef.Name)))
 
 		})
 
@@ -87,8 +87,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Output.SecretRef.Name)))
 
 			sampleSecret := tb.Catalog.SecretWithAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
@@ -99,7 +99,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 		})
 	})
 
@@ -125,7 +125,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.Output.SecretRef.Name)).To(BeNil())
@@ -152,8 +152,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Output.SecretRef.Name)))
 
 			sampleSecret := tb.Catalog.SecretWithoutAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
@@ -164,8 +164,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Output.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Output.SecretRef.Name)))
 
 		})
 
@@ -185,8 +185,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", "fake-secret")))
 
 			sampleSecret := tb.Catalog.SecretWithoutAnnotation(buildObject.Spec.Output.SecretRef.Name, buildObject.Namespace)
 
@@ -194,8 +194,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			Expect(tb.CreateSecret(sampleSecret)).To(BeNil())
 			// validate build status again
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", "fake-secret")))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecOutputSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", "fake-secret")))
 
 			// we modify the annotation so automatic delete does not take place
 			data := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"true"}}}`, v1alpha1.AnnotationBuildRefSecret))
@@ -207,7 +207,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 		})
 	})
@@ -234,7 +234,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.Source.SecretRef.Name)).To(BeNil())
@@ -243,8 +243,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Source.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecSourceSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Source.SecretRef.Name)))
 
 		})
 
@@ -264,8 +264,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.Source.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecSourceSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.Source.SecretRef.Name)))
 
 			sampleSecret := tb.Catalog.SecretWithAnnotation(buildObject.Spec.Source.SecretRef.Name, buildObject.Namespace)
 
@@ -276,7 +276,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 		})
 	})
 
@@ -302,7 +302,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(buildObject.Spec.BuilderImage.SecretRef.Name)).To(BeNil())
@@ -311,8 +311,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.BuilderImage.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecRuntimeSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.BuilderImage.SecretRef.Name)))
 
 		})
 
@@ -332,8 +332,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", buildObject.Spec.BuilderImage.SecretRef.Name)))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SpecRuntimeSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", buildObject.Spec.BuilderImage.SecretRef.Name)))
 
 			sampleSecret := tb.Catalog.SecretWithAnnotation(buildObject.Spec.BuilderImage.SecretRef.Name, buildObject.Namespace)
 
@@ -344,7 +344,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 		})
 	})
 
@@ -372,16 +372,16 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(specSourceSecret.Name)).To(BeNil())
 			Expect(tb.DeleteSecret(specBuilderSecret.Name)).To(BeNil())
 
-			buildObject, err = tb.GetBuildTillMessageContainsSubstring(buildName, "do not exist")
+			buildObject, err = tb.GetBuildTillMessageContainsSubstring(buildName, "missing secrets are")
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretsDoNotExist"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.MultipleSecretRefNotFound))
 			Expect(buildObject.Status.Message).To(ContainSubstring(specSourceSecret.Name))
 			Expect(buildObject.Status.Message).To(ContainSubstring(specBuilderSecret.Name))
 
@@ -403,8 +403,8 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err := tb.GetBuildTillValidation(buildName)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(buildObject.Status.Reason).To(Equal("SecretsDoNotExist"))
-			Expect(buildObject.Status.Message).To(ContainSubstring("do not exist"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.MultipleSecretRefNotFound))
+			Expect(buildObject.Status.Message).To(ContainSubstring("missing secrets are"))
 			Expect(buildObject.Status.Message).To(ContainSubstring(buildObject.Spec.Source.SecretRef.Name))
 			Expect(buildObject.Status.Message).To(ContainSubstring(buildObject.Spec.BuilderImage.SecretRef.Name))
 
@@ -419,7 +419,7 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			buildObject, err = tb.GetBuildTillRegistration(buildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(buildObject.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(buildObject.Status.Reason).To(Equal("Succeeded"))
+			Expect(buildObject.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 		})
 	})
 	Context("when multiple builds reference a secret with annotations for the spec.source", func() {
@@ -454,12 +454,12 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			o, err := tb.GetBuildTillValidation(firstBuildName)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(o.Status.Reason).To(Equal("Succeeded"))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			o, err = tb.GetBuildTillValidation(secondBuildName)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(o.Status.Reason).To(Equal("Succeeded"))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			// delete a secret
 			Expect(tb.DeleteSecret(specSourceSecret.Name)).To(BeNil())
@@ -468,15 +468,15 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			o, err = tb.GetBuildTillRegistration(firstBuildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(o.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(o.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", firstBuildObject.Spec.Source.SecretRef.Name)))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SpecSourceSecretRefNotFound))
+			Expect(o.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", firstBuildObject.Spec.Source.SecretRef.Name)))
 
 			// assert that the validation happened one more time
 			o, err = tb.GetBuildTillRegistration(secondBuildName, corev1.ConditionFalse)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionFalse))
-			Expect(o.Status.Reason).To(Equal("SecretDoesNotExist"))
-			Expect(o.Status.Message).To(Equal(fmt.Sprintf("secret %s does not exist", secondBuildObject.Spec.Source.SecretRef.Name)))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SpecSourceSecretRefNotFound))
+			Expect(o.Status.Message).To(Equal(fmt.Sprintf("referenced secret %s not found", secondBuildObject.Spec.Source.SecretRef.Name)))
 		})
 		It("should validate the Builds when a missing secret is recreated", func() {
 			// populate Build related vars
@@ -518,12 +518,12 @@ var _ = Describe("Integration tests Build and referenced Secrets", func() {
 			o, err := tb.GetBuildTillRegistration(firstBuildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(o.Status.Reason).To(Equal("Succeeded"))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 
 			o, err = tb.GetBuildTillRegistration(secondBuildName, corev1.ConditionTrue)
 			Expect(err).To(BeNil())
 			Expect(o.Status.Registered).To(Equal(corev1.ConditionTrue))
-			Expect(o.Status.Reason).To(Equal("Succeeded"))
+			Expect(o.Status.Reason).To(Equal(v1alpha1.SucceedStatus))
 		})
 	})
 })
