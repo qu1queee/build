@@ -7,15 +7,18 @@ package build
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
-
+	build "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	"github.com/shipwright-io/build/pkg/config"
+	"github.com/shipwright-io/build/pkg/controller/utils"
+	"github.com/shipwright-io/build/pkg/ctxlog"
+	buildmetrics "github.com/shipwright-io/build/pkg/metrics"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -25,12 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	build "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
-	"github.com/shipwright-io/build/pkg/config"
-	"github.com/shipwright-io/build/pkg/controller/utils"
-	"github.com/shipwright-io/build/pkg/ctxlog"
-	buildmetrics "github.com/shipwright-io/build/pkg/metrics"
+	"strings"
 )
 
 // TODO:
@@ -252,6 +250,7 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	b.Status.Reason = build.SucceedStatus
 
 	// Validate if the referenced secrets exist in the namespace
+	validationFailed = false
 	secretRefMap := map[string]build.BuildReason{}
 	if b.Spec.Output.SecretRef != nil && b.Spec.Output.SecretRef.Name != "" {
 		secretRefMap[b.Spec.Output.SecretRef.Name] = build.SpecOutputSecretRefNotFound
@@ -275,11 +274,11 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	}
 
 	// Validate if the referenced strategy exists
+	validationFailed = false
 	if b.Spec.StrategyRef != nil {
 		if err := r.validateStrategyRef(ctx, b); err != nil {
 			return reconcile.Result{}, err
 		}
-
 		if validationFailed {
 			return r.UpdateBuildStatusAndRetreat(ctx, b)
 		}
@@ -301,7 +300,9 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	}
 
 	// Increase Build count in metrics
-	buildmetrics.BuildCountInc(b.Spec.StrategyRef.Name)
+	if b.Spec.StrategyRef != nil {
+		buildmetrics.BuildCountInc(b.Spec.StrategyRef.Name)
+	}
 
 	ctxlog.Debug(ctx, "finishing reconciling Build", namespace, request.Namespace, name, request.Name)
 	return reconcile.Result{}, nil
@@ -390,7 +391,7 @@ func (r *ReconcileBuild) validateClusterBuildStrategy(ctx context.Context, b *bu
 
 func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames map[string]build.BuildReason, b *build.Build) error {
 
-	missingSecrets := make([]string, len(secretNames))
+	var missingSecrets []string
 	secret := &corev1.Secret{}
 	for refSecret, secretType := range secretNames {
 		if err := r.client.Get(ctx, types.NamespacedName{Name: refSecret, Namespace: b.Namespace}, secret); err != nil && !apierrors.IsNotFound(err) {
@@ -403,7 +404,7 @@ func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames map[st
 	}
 
 	if len(missingSecrets) > 1 {
-		// fmt.Sprintf("missing secrets are %s", strings.Join(missingSecrets, ",")
+		ctxlog.Info(ctx, fmt.Sprintf("missing secrets are %v", missingSecrets))
 		MarkBuildStatus(b, build.MultipleSecretRefNotFound, fmt.Sprintf("missing secrets are %s", strings.Join(missingSecrets, ",")))
 	}
 
