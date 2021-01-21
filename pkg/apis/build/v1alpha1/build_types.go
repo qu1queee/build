@@ -32,6 +32,8 @@ const (
 	MultipleSecretRefNotFound BuildReason = "MultipleSecretRefNotFound"
 	// RuntimePathsCanNotBeEmpty indicates that the spec.runtime feature is used but the paths were not specified
 	RuntimePathsCanNotBeEmpty BuildReason = "RuntimePathsCanNotBeEmpty"
+	// RemoteRepositoryUnreachable indicates the referenced repository is unreachable
+	RemoteRepositoryUnreachable BuildReason = "RemoteRepositoryUnreachable"
 	// AllValidationsSucceeded indicates a Build was successfully validated
 	AllValidationsSucceeded = "all validations succeeded"
 )
