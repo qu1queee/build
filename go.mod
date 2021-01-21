@@ -11,24 +11,25 @@ require (
 	github.com/onsi/gomega v1.10.1
 	github.com/operator-framework/operator-sdk v0.18.2
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.6.0
+	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/pflag v1.0.5
-	github.com/tektoncd/pipeline v0.18.1
-	k8s.io/api v0.18.10
+	github.com/tektoncd/pipeline v0.20.1
+	k8s.io/api v0.18.12
 	k8s.io/apimachinery v0.19.0
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/code-generator v0.18.10
+	k8s.io/code-generator v0.18.12
 	k8s.io/kube-openapi v0.0.0-20200805222855-6aeccd4b50c6
 	k8s.io/kubectl v0.18.10
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
-	knative.dev/pkg v0.0.0-20201026165741-2f75016c1368
+	knative.dev/pkg v0.0.0-20210107022335-51c72e24c179
+	knative.dev/test-infra v0.0.0-20200921012245-37f1a12adbd3 // indirect
 	sigs.k8s.io/controller-runtime v0.6.1
 	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible // Required by OLM
+	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.2.0+incompatible // Required by OLM
 	// github.com/operator-framework/operator-registry requires Sirupsen/logrus@v1.7.0
 	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.7.0
 	// Pin docker/* to versions used to spinning up local test registries by operator-sdk
