@@ -7,7 +7,6 @@ package build_test
 import (
 	"context"
 	"fmt"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -506,7 +505,7 @@ var _ = Describe("Reconcile Build", func() {
 					return nil
 				})
 
-				statusCall := ctl.StubFunc(corev1.ConditionFalse, "invalid source url")
+				statusCall := ctl.StubFunc(corev1.ConditionFalse, build.RemoteRepositoryUnreachable, "invalid source url")
 				statusWriter.UpdateCalls(statusCall)
 
 				_, err := reconciler.Reconcile(request)
@@ -532,7 +531,7 @@ var _ = Describe("Reconcile Build", func() {
 					return nil
 				})
 
-				statusCall := ctl.StubFunc(corev1.ConditionFalse, "remote repository unreachable")
+				statusCall := ctl.StubFunc(corev1.ConditionFalse, build.RemoteRepositoryUnreachable, "remote repository unreachable")
 				statusWriter.UpdateCalls(statusCall)
 
 				_, err := reconciler.Reconcile(request)
@@ -558,7 +557,7 @@ var _ = Describe("Reconcile Build", func() {
 					return nil
 				})
 
-				statusCall := ctl.StubFunc(corev1.ConditionTrue, "Succeeded")
+				statusCall := ctl.StubFunc(corev1.ConditionTrue, build.SucceedStatus, build.AllValidationsSucceeded)
 				statusWriter.UpdateCalls(statusCall)
 
 				result, err := reconciler.Reconcile(request)
@@ -577,9 +576,6 @@ var _ = Describe("Reconcile Build", func() {
 				// different resources we could get during reconciliation
 				client.ListCalls(func(context context.Context, object runtime.Object, _ ...crc.ListOption) error {
 					switch object := object.(type) {
-					case *corev1.SecretList:
-						list := ctl.SecretList(registrySecret)
-						list.DeepCopyInto(object)
 					case *build.ClusterBuildStrategyList:
 						list := ctl.ClusterBuildStrategyList(buildStrategyName)
 						list.DeepCopyInto(object)
@@ -587,7 +583,20 @@ var _ = Describe("Reconcile Build", func() {
 					return nil
 				})
 
-				statusCall := ctl.StubFunc(corev1.ConditionTrue, "Succeeded")
+				// Fake some client Get calls and ensure we populate all
+				// different resources we could get during reconciliation
+				client.GetCalls(func(context context.Context, nn types.NamespacedName, object runtime.Object) error {
+					switch object := object.(type) {
+					case *build.Build:
+						buildSample.DeepCopyInto(object)
+					case *corev1.Secret:
+						secretSample = ctl.SecretWithoutAnnotation(registrySecret, namespace)
+						secretSample.DeepCopyInto(object)
+					}
+					return nil
+				})
+
+				statusCall := ctl.StubFunc(corev1.ConditionTrue, build.SucceedStatus, build.AllValidationsSucceeded)
 				statusWriter.UpdateCalls(statusCall)
 
 				result, err := reconciler.Reconcile(request)
