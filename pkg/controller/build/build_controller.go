@@ -248,11 +248,12 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	// Validate if remote repository exists
 	if b.Spec.Source.SecretRef == nil {
 		if err := r.validateSourceURL(ctx, b, b.Spec.Source.URL); err != nil {
-			b.Status.Reason = err.Error()
-			if updateErr := r.client.Status().Update(ctx, b); updateErr != nil {
-				return reconcile.Result{}, updateErr
-			}
-			return reconcile.Result{}, nil
+			validationFailed = true
+			MarkBuildStatus(b, build.RemoteRepositoryUnreachable, err.Error())
+		}
+
+		if validationFailed {
+			return r.UpdateBuildStatusAndRetreat(ctx, b)
 		}
 	}
 
