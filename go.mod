@@ -3,10 +3,16 @@ module github.com/shipwright-io/build
 go 1.14
 
 require (
+	github.com/containerd/containerd v1.3.3 // indirect
+	github.com/docker/cli v0.0.0-20200210162036-a4bedce16568 // indirect
+	github.com/docker/docker v1.13.1 // indirect
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-git/go-git/v5 v5.2.0
 	github.com/go-logr/logr v0.2.0
 	github.com/go-openapi/spec v0.19.6
+	github.com/gorilla/handlers v1.4.2 // indirect
+	github.com/kr/pretty v0.2.0 // indirect
+	github.com/mattn/go-sqlite3 v2.0.1+incompatible // indirect
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/operator-framework/operator-sdk v0.18.2
@@ -23,7 +29,6 @@ require (
 	k8s.io/kubectl v0.18.10
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
 	knative.dev/pkg v0.0.0-20210107022335-51c72e24c179
-	knative.dev/test-infra v0.0.0-20200921012245-37f1a12adbd3 // indirect
 	sigs.k8s.io/controller-runtime v0.6.1
 	sigs.k8s.io/yaml v1.2.0
 )
