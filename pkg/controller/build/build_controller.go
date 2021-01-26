@@ -239,16 +239,11 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 	// Populate the status struct with default values
 	b.Status.Registered = corev1.ConditionFalse
 	b.Status.Reason = build.SucceedStatus
-	validationFailed = false
 
 	// Validate if remote repository exists
 	if b.Spec.Source.SecretRef == nil {
 		if err := r.validateSourceURL(ctx, b, b.Spec.Source.URL); err != nil {
-			validationFailed = true
 			MarkBuildStatus(b, build.RemoteRepositoryUnreachable, err.Error())
-		}
-
-		if validationFailed {
 			return r.UpdateBuildStatusAndRetreat(ctx, b)
 		}
 	}
@@ -271,7 +266,7 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 			return reconcile.Result{}, err
 		}
 
-		if validationFailed {
+		if b.Status.Reason != build.SucceedStatus {
 			return r.UpdateBuildStatusAndRetreat(ctx, b)
 		}
 	}
@@ -282,7 +277,7 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 			return reconcile.Result{}, err
 		}
 
-		if validationFailed {
+		if b.Status.Reason != build.SucceedStatus {
 			return r.UpdateBuildStatusAndRetreat(ctx, b)
 		}
 		ctxlog.Info(ctx, "buildStrategy found", namespace, b.Namespace, name, b.Name, "strategy", b.Spec.StrategyRef.Name)
@@ -321,7 +316,7 @@ func (r *ReconcileBuild) UpdateBuildStatusAndRetreat(ctx context.Context, b *bui
 
 func (r *ReconcileBuild) validateRuntimeFailed(b *build.Build) bool {
 	if len(b.Spec.Runtime.Paths) == 0 {
-		MarkBuildStatus(b, build.RuntimePathsCanNotBeEmpty, fmt.Sprintf("the property 'spec.runtime.paths' must not be empty"))
+		MarkBuildStatus(b, build.RuntimePathsCanNotBeEmpty, "the property 'spec.runtime.paths' must not be empty")
 		return true
 	}
 	return false
@@ -374,7 +369,6 @@ func (r *ReconcileBuild) validateClusterBuildStrategy(ctx context.Context, strat
 		validationFailed = true
 		MarkBuildStatus(b, build.ClusterBuildStrategyNotFound, fmt.Sprintf("clusterBuildStrategy %s does not exist", b.Spec.StrategyRef.Name))
 	}
-
 	return nil
 }
 
@@ -386,7 +380,6 @@ func (r *ReconcileBuild) validateSecrets(ctx context.Context, secretNames map[st
 		if err := r.client.Get(ctx, types.NamespacedName{Name: refSecret, Namespace: b.Namespace}, secret); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		} else if apierrors.IsNotFound(err) {
-			validationFailed = true
 			MarkBuildStatus(b, secretType, fmt.Sprintf("referenced secret %s not found", refSecret))
 			missingSecrets = append(missingSecrets, refSecret)
 		}

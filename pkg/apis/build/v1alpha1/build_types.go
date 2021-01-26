@@ -23,7 +23,7 @@ const (
 	// SetOwnerReferenceFailed indicates that setting ownerReferences between a Build and a BuildRun failed
 	SetOwnerReferenceFailed BuildReason = "SetOwnerReferenceFailed"
 	// SpecSourceSecretRefNotFound indicates the referenced secret in source is missing
-	SpecSourceSecretRefNotFound BuildReason = "SpecSourceSecretNotFound"
+	SpecSourceSecretRefNotFound BuildReason = "SpecSourceSecretRefNotFound"
 	// SpecOutputSecretRefNotFound indicates the referenced secret in output is missing
 	SpecOutputSecretRefNotFound BuildReason = "SpecOutputSecretRefNotFound"
 	// SpecRuntimeSecretRefNotFound indicates the referenced secret in runtime is missing
