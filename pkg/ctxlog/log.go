@@ -6,20 +6,39 @@ package ctxlog
 
 import (
 	"context"
+	"flag"
 	"io"
 
 	"github.com/go-logr/logr"
-	"github.com/operator-framework/operator-sdk/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+var flagOptions = &zap.Options{}
+
+type levelFlag struct{}
+
+func (l levelFlag) Set(input string) error { return nil }
+
+func (l levelFlag) String() string { return "" }
+
+// CustomZapFlagSet ...
+func CustomZapFlagSet() *flag.FlagSet {
+	f := flag.NewFlagSet("zap", flag.ExitOnError)
+	flagOptions.BindFlags(f)
+
+	var foo levelFlag
+	f.Var(foo, "zap-level", "Deprecated: Please use --zap-log-level instead; set log level")
+
+	return f
+}
+
 // NewLogger returns a new Logger instance
 // by using the operator-sdk log/zap logging
-// implementation
+// implementation TODO
 func NewLogger(name string) logr.Logger {
-	l := zap.Logger()
-
+	l := zap.New(zap.UseFlagOptions(flagOptions))
 	logf.SetLogger(l)
 
 	l = l.WithName(name)
@@ -30,7 +49,7 @@ func NewLogger(name string) logr.Logger {
 // NewLoggerTo returns a new Logger which logs
 // to a given destination.
 func NewLoggerTo(destWriter io.Writer, name string) logr.Logger {
-	l := zap.LoggerTo(destWriter)
+	l := zap.New(zap.UseFlagOptions(flagOptions), zap.WriteTo(destWriter))
 
 	logf.SetLogger(l)
 

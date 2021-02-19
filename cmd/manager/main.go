@@ -7,20 +7,18 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"runtime"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
+	"github.com/spf13/pflag"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/ready"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
-	"github.com/spf13/pflag"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -53,14 +51,8 @@ func printVersion(ctx context.Context) {
 }
 
 func main() {
-	// Add the zap logger flag set to the CLI. The flag set must
-	// be added before calling pflag.Parse().
-	pflag.CommandLine.AddFlagSet(zap.FlagSet())
-
-	// Add flags registered by imported packages (e.g. glog and
-	// controller-runtime)
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-
+	flagSet := ctxlog.CustomZapFlagSet()
+	pflag.CommandLine.AddGoFlagSet(flagSet)
 	pflag.Parse()
 
 	// Use a zap logr.Logger implementation. If none of the zap
@@ -83,6 +75,9 @@ func main() {
 		ctxlog.Error(ctx, err, "Failed to get watch namespace")
 		os.Exit(1)
 	}
+
+	ctxlog.Info(ctx, "testing info level")
+	ctxlog.Debug(ctx, "testing debug level")
 
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
