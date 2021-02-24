@@ -6,6 +6,10 @@ package build
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -74,30 +78,53 @@ func (r *ReconcileBuild) Reconcile(request reconcile.Request) (reconcile.Result,
 		validate.Runtime,
 	}
 
-	// trigger all current validations
-	for _, validationType := range validationTypes {
-		v, err := validate.NewValidation(validationType, b, r.client, r.scheme)
-		if err != nil {
-			// when the validation type is unknown
-			return reconcile.Result{}, err
-		}
+	var errors = make(chan error, len(validationTypes))
+	var wg sync.WaitGroup
 
-		if err := v.ValidatePath(ctx); err != nil {
-			// We enqueue another reconcile here. This is done only for validation
-			// types where the error can be produced from a failed API call.
-			if validationType == validate.Secrets || validationType == validate.Strategies {
-				return reconcile.Result{}, err
+	start := time.Now()
+
+	// trigger all current validations
+	for i, validationType := range validationTypes {
+		wg.Add(1)
+		go func(i int, validation string, bd *build.Build) {
+			defer wg.Done()
+			v, err := validate.NewValidation(validation, bd, r.client, r.scheme)
+			if err != nil {
+				errors <- err
+				return
+				// when the validation type is unknown
+				// return reconcile.Result{}, err
 			}
-			if validationType == validate.OwnerReferences {
-				// we do not want to bail out here if the owerreference validation fails, we ignore this error on purpose
-				// In case we just created the Build, we want the Build reconcile logic to continue, in order to
-				// validate the Build references ( e.g secrets, strategies )
-				ctxlog.Info(ctx, "unexpected error during ownership reference validation", namespace, request.Namespace, name, request.Name, "error", err)
+			if err := v.ValidatePath(ctx); err != nil {
+				// We enqueue another reconcile here. This is done only for validation
+				// types where the error can be produced from a failed API call.
+				if validation == validate.Secrets || validation == validate.Strategies {
+					errors <- err
+					return
+					// return reconcile.Result{}, err
+				}
+				if validation == validate.OwnerReferences {
+					// we do not want to bail out here if the owerreference validation fails, we ignore this error on purpose
+					// In case we just created the Build, we want the Build reconcile logic to continue, in order to
+					// validate the Build references ( e.g secrets, strategies )
+					ctxlog.Info(ctx, "unexpected error during ownership reference validation", namespace, request.Namespace, name, request.Name, "error", err)
+				}
 			}
-		}
-		if b.Status.Reason != build.SucceedStatus {
-			return r.UpdateBuildStatusAndRetreat(ctx, b)
-		}
+		}(i, validationType, b)
+	}
+
+	wg.Wait()
+
+	elapsed := time.Since(start)
+	log.Printf("Binomial took %s", elapsed)
+
+	close(errors)
+	if len(errors) > 0 {
+		return reconcile.Result{}, fmt.Errorf("drop all errors together")
+	}
+
+	if b.Status.Reason != build.SucceedStatus {
+		return r.UpdateBuildStatusAndRetreat(ctx, b)
 	}
 
 	b.Status.Registered = corev1.ConditionTrue
