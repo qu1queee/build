@@ -50,7 +50,7 @@ jobs:
         REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
         IMAGE_HOST: quay.io
-        IMAGE: shipwright/shipwright-operator
+        IMAGE: encaladaenrique/eeeoo
       run: make release
     - name: Upload Release Asset
       id: upload_release_asset 

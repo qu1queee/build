@@ -68,7 +68,7 @@ TEST_SOURCE_SECRET ?=
 
 # Image settings for building and pushing images
 IMAGE_HOST ?= quay.io
-IMAGE ?= shipwright/shipwright-operator
+IMAGE ?= encaladaenrique/eeeoo
 TAG ?= latest
 
 .EXPORT_ALL_VARIABLES:
