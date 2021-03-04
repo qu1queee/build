@@ -112,6 +112,8 @@ func renderEntrypoint(e []string) string {
 
 // renderRuntimeDockerfile render runtime Dockerfile using build instance and pre-defined template.
 func renderRuntimeDockerfile(b *buildv1alpha1.Build) (*bytes.Buffer, error) {
+	// another alternative is to use template.Must() but that will panic
+	// on errors, therefore we process an error here
 	tmpl, err := template.New(runtimeDockerfile).
 		Funcs(template.FuncMap{
 			"renderUserAndGroup": renderUserAndGroup,
@@ -124,7 +126,7 @@ func renderRuntimeDockerfile(b *buildv1alpha1.Build) (*bytes.Buffer, error) {
 	}
 
 	dockerfile := new(bytes.Buffer)
-	if err = tmpl.Execute(dockerfile, b); err != nil {
+	if err := tmpl.Execute(dockerfile, b); err != nil {
 		return nil, err
 	}
 	return dockerfile, nil
