@@ -18,6 +18,28 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	buildv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	"github.com/shipwright-io/build/pkg/ctxlog"
+)
+
+const (
+	// ConditionUnknownStrategyKind ...
+	ConditionUnknownStrategyKind string = "UnknownStrategyKind"
+	// ConditionStrategyKindIsMissing ...
+	ConditionStrategyKindIsMissing string = "StrategyKindIsMissing"
+	// ClusterBuildStrategyNotFound ...
+	ClusterBuildStrategyNotFound string = "ClusterBuildStrategyNotFound"
+	// BuildStrategyNotFound ...
+	BuildStrategyNotFound string = "BuildStrategyNotFound"
+	// ConditionSetOwnerReferenceFailed ...
+	ConditionSetOwnerReferenceFailed string = "SetOwnerReferenceFailed"
+	// ConditionFailed ...
+	ConditionFailed string = "Failed"
+	// ConditionTaskRunIsMissing ...
+	ConditionTaskRunIsMissing string = "TaskRunIsMissing"
+	// ConditionTaskRunGenerationFailed ...
+	ConditionTaskRunGenerationFailed string = "TaskRunGenerationFailed"
+	// ConditionServiceAccountNotFound ...
+	ConditionServiceAccountNotFound string = "ServiceAccountNotFound"
 )
 
 // UpdateBuildRunUsingTaskRunCondition updates the BuildRun Succeeded Condition
@@ -93,4 +115,23 @@ func UpdateBuildRunUsingTaskRunCondition(ctx context.Context, client client.Clie
 	})
 
 	return nil
+}
+
+// UpdateConditionWithFalseStatus ...
+func UpdateConditionWithFalseStatus(ctx context.Context, client client.Client, buildRun *buildv1alpha1.BuildRun, errorMessage string, reason string) error {
+	// these two fields are deprecated and will be removed soon
+	buildRun.Status.Succeeded = corev1.ConditionFalse
+	buildRun.Status.Reason = errorMessage
+
+	now := metav1.Now()
+	buildRun.Status.CompletionTime = &now
+	buildRun.Status.SetCondition(&buildv1alpha1.Condition{
+		LastTransitionTime: now,
+		Type:               buildv1alpha1.Succeeded,
+		Status:             corev1.ConditionFalse,
+		Reason:             reason,
+		Message:            errorMessage,
+	})
+	ctxlog.Debug(ctx, "updating buildRun status", namespace, buildRun.Namespace, name, buildRun.Name)
+	return client.Status().Update(ctx, buildRun)
 }

@@ -15,7 +15,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -93,13 +92,22 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 
 			build = &buildv1alpha1.Build{}
 			if err = resources.GetBuildObject(ctx, r.client, buildRun.Spec.BuildRef.Name, buildRun.Namespace, build); err != nil {
-				updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-				return reconcile.Result{}, resources.HandleError("Failed to fetch the Build instance", err, updateErr)
+				// system call failure, reconcile again
+				return reconcile.Result{}, err
 			}
 
 			// Validate if the Build was successfully registered
-			if err := r.ValidateBuildRegistration(ctx, build, buildRun); err != nil {
+			if build.Status.Registered == "" {
+				err := fmt.Errorf("the Build is not yet validated, build: %s", build.Name)
+				// reconcile again until it gets a registration value
 				return reconcile.Result{}, err
+			}
+
+			if build.Status.Registered != corev1.ConditionTrue {
+				// stop reconciling and mark the BuildRun as Failed
+				// we only reconcile again if the status.Update call fails
+				err := fmt.Errorf("the Build is not registered correctly, build: %s, registered status: %s, reason: %s", build.Name, build.Status.Registered, build.Status.Reason)
+				return reconcile.Result{}, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), "BuildRegistrationFailed")
 			}
 
 			// Ensure the build-related labels on the BuildRun
@@ -142,16 +150,51 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 				return reconcile.Result{}, err
 			}
 
+			// Choose a service account to use
+			svcAccount, err := resources.RetrieveServiceAccount(ctx, r.client, build, buildRun)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					// stop reconciling and mark the BuildRun as Failed
+					// we only reconcile again if the status.Update call fails
+					return reconcile.Result{},
+						resources.UpdateConditionWithFalseStatus(
+							ctx,
+							r.client,
+							buildRun,
+							err.Error(),
+							resources.ConditionServiceAccountNotFound,
+						)
+				}
+				// system call failure, reconcile again
+				return reconcile.Result{}, err
+			}
+
+			strategy, err := r.getReferencedStrategy(ctx, build, buildRun)
+			if err != nil {
+				// system call failure, status.Update, reconcile again
+				return reconcile.Result{}, err
+			}
+			if strategy == nil {
+				// stop reconciling, referenced strategy was not found
+				return reconcile.Result{}, nil
+			}
+
 			// Create the TaskRun, this needs to be the last step in this block to be idempotent
-			generatedTaskRun, err := r.createTaskRun(ctx, build, buildRun)
+			generatedTaskRun, err := r.createTaskRun(ctx, svcAccount, strategy, build, buildRun)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
 
+			// check if taskRun is nil
+			if generatedTaskRun == nil {
+				ctxlog.Info(ctx, "taskRun generation failed", namespace, request.Namespace, name, request.Name)
+				return reconcile.Result{}, nil
+			}
+
 			ctxlog.Info(ctx, "creating TaskRun from BuildRun", namespace, request.Namespace, name, generatedTaskRun.GenerateName, "BuildRun", buildRun.Name)
 			if err = r.client.Create(ctx, generatedTaskRun); err != nil {
-				updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-				return reconcile.Result{}, resources.HandleError("Failed to create TaskRun if no TaskRun for that BuildRun exists", err, updateErr)
+				// system call failure, reconcile again
+				return reconcile.Result{}, err
 			}
 
 			// Set the LastTaskRunRef in the BuildRun status
@@ -323,90 +366,61 @@ func (r *ReconcileBuildRun) VerifyRequestName(ctx context.Context, request recon
 				// We ignore the errors from the following call, because the parent call of this function will always
 				// return back a reconcile.Result{}, nil. This is done to avoid infinite reconcile loops when a BuildRun
 				// does not longer exists
-				r.updateBuildRunErrorStatus(ctx, buildRun, fmt.Sprintf("taskRun %s doesn't exist", request.Name))
+				resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, fmt.Sprintf("taskRun %s doesn't exist", request.Name), resources.ConditionTaskRunIsMissing)
 			}
 		}
 	}
 }
 
-func (r *ReconcileBuildRun) createTaskRun(ctx context.Context, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (*v1beta1.TaskRun, error) {
-	var generatedTaskRun *v1beta1.TaskRun
-	// Choose a service account to use
-	serviceAccount, err := resources.RetrieveServiceAccount(ctx, r.client, build, buildRun)
-	if err != nil {
-		updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-		return nil, resources.HandleError("Failed to choose a service account to use", err, updateErr)
+func (r *ReconcileBuildRun) getReferencedStrategy(ctx context.Context, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (buildv1alpha1.BuilderStrategy, error) {
+	var (
+		strategy buildv1alpha1.BuilderStrategy
+		err      error
+	)
+
+	if build.Spec.StrategyRef.Kind == nil {
+		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, fmt.Errorf("undefined strategy Kind").Error(), resources.ConditionStrategyKindIsMissing)
 	}
 
-	if build.Spec.StrategyRef.Kind == nil || *build.Spec.StrategyRef.Kind == buildv1alpha1.NamespacedBuildStrategyKind {
-		buildStrategy, err := resources.RetrieveBuildStrategy(ctx, r.client, build)
+	switch *build.Spec.StrategyRef.Kind {
+	case buildv1alpha1.NamespacedBuildStrategyKind:
+		strategy, err = resources.RetrieveBuildStrategy(ctx, r.client, build)
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.BuildStrategyNotFound)
+			}
 			return nil, err
 		}
-		if buildStrategy != nil {
-			generatedTaskRun, err = resources.GenerateTaskRun(r.config, build, buildRun, serviceAccount.Name, buildStrategy)
-			if err != nil {
-				updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-				return nil, resources.HandleError("Failed to generate the taskrun with buildStrategy", err, updateErr)
-			}
-		}
-	} else if *build.Spec.StrategyRef.Kind == buildv1alpha1.ClusterBuildStrategyKind {
-		clusterBuildStrategy, err := resources.RetrieveClusterBuildStrategy(ctx, r.client, build)
+	case buildv1alpha1.ClusterBuildStrategyKind:
+		strategy, err = resources.RetrieveClusterBuildStrategy(ctx, r.client, build)
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ClusterBuildStrategyNotFound)
+			}
 			return nil, err
 		}
-		if clusterBuildStrategy != nil {
-			generatedTaskRun, err = resources.GenerateTaskRun(r.config, build, buildRun, serviceAccount.Name, clusterBuildStrategy)
-			if err != nil {
-				updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-				return nil, resources.HandleError("Failed to generate the taskrun with clusterBuildStrategy", err, updateErr)
-			}
-		}
-	} else {
+	default:
 		err := fmt.Errorf("unknown strategy %s", string(*build.Spec.StrategyRef.Kind))
-		updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-		return nil, resources.HandleError(fmt.Sprintf("Unsupported BuildStrategy Kind: %v", build.Spec.StrategyRef.Kind), err, updateErr)
+		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionUnknownStrategyKind)
+	}
+
+	return strategy, nil
+}
+
+func (r *ReconcileBuildRun) createTaskRun(ctx context.Context, serviceAccount *corev1.ServiceAccount, strategy buildv1alpha1.BuilderStrategy, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (*v1beta1.TaskRun, error) {
+	var (
+		generatedTaskRun *v1beta1.TaskRun
+	)
+
+	generatedTaskRun, err := resources.GenerateTaskRun(r.config, build, buildRun, serviceAccount.Name, strategy)
+	if err != nil {
+		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionTaskRunGenerationFailed)
 	}
 
 	// Set OwnerReference for BuildRun and TaskRun
 	if err := r.setOwnerReferenceFunc(buildRun, generatedTaskRun, r.scheme); err != nil {
-		updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-		return nil, resources.HandleError("failed to set OwnerReference for BuildRun and TaskRun", err, updateErr)
+		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionSetOwnerReferenceFailed)
 	}
 
 	return generatedTaskRun, nil
-}
-
-// updateBuildRunErrorStatus updates buildRun status fields
-func (r *ReconcileBuildRun) updateBuildRunErrorStatus(ctx context.Context, buildRun *buildv1alpha1.BuildRun, errorMessage string) error {
-	// these two fields are deprecated and will be removed soon
-	buildRun.Status.Succeeded = corev1.ConditionFalse
-	buildRun.Status.Reason = errorMessage
-
-	now := metav1.Now()
-	buildRun.Status.CompletionTime = &now
-	buildRun.Status.SetCondition(&buildv1alpha1.Condition{
-		LastTransitionTime: now,
-		Type:               buildv1alpha1.Succeeded,
-		Status:             corev1.ConditionFalse,
-		Reason:             "Failed",
-		Message:            errorMessage,
-	})
-	ctxlog.Debug(ctx, "updating buildRun status", namespace, buildRun.Namespace, name, buildRun.Name)
-	updateErr := r.client.Status().Update(ctx, buildRun)
-	return updateErr
-}
-
-// ValidateBuildRegistration verifies that a referenced Build is properly registered
-func (r *ReconcileBuildRun) ValidateBuildRegistration(ctx context.Context, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) error {
-	if build.Status.Registered == "" {
-		err := fmt.Errorf("the Build is not yet validated, build: %s", build.Name)
-		return err
-	}
-	if build.Status.Registered != corev1.ConditionTrue {
-		err := fmt.Errorf("the Build is not registered correctly, build: %s, registered status: %s, reason: %s", build.Name, build.Status.Registered, build.Status.Reason)
-		updateErr := r.updateBuildRunErrorStatus(ctx, buildRun, err.Error())
-		return resources.HandleError("Build is not ready", err, updateErr)
-	}
-	return nil
 }
