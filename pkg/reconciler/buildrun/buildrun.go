@@ -153,20 +153,12 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 			// Choose a service account to use
 			svcAccount, err := resources.RetrieveServiceAccount(ctx, r.client, build, buildRun)
 			if err != nil {
-				if apierrors.IsNotFound(err) {
-					// stop reconciling and mark the BuildRun as Failed
-					// we only reconcile again if the status.Update call fails
-					return reconcile.Result{},
-						resources.UpdateConditionWithFalseStatus(
-							ctx,
-							r.client,
-							buildRun,
-							err.Error(),
-							resources.ConditionServiceAccountNotFound,
-						)
-				}
 				// system call failure, reconcile again
 				return reconcile.Result{}, err
+			}
+			if svcAccount == nil {
+				// stop reconciling, sa retrieval or generation issues
+				return reconcile.Result{}, nil
 			}
 
 			strategy, err := r.getReferencedStrategy(ctx, build, buildRun)
