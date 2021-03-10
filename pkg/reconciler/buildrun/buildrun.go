@@ -91,7 +91,7 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 			}
 
 			build = &buildv1alpha1.Build{}
-			if err = resources.GetBuildObject(ctx, r.client, buildRun.Spec.BuildRef.Name, buildRun.Namespace, build); err != nil {
+			if err = resources.GetBuildObject(ctx, r.client, buildRun, build); err != nil {
 				// system call failure, reconcile again
 				return reconcile.Result{}, err
 			}
@@ -107,7 +107,7 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 				// stop reconciling and mark the BuildRun as Failed
 				// we only reconcile again if the status.Update call fails
 				err := fmt.Errorf("the Build is not registered correctly, build: %s, registered status: %s, reason: %s", build.Name, build.Status.Registered, build.Status.Reason)
-				return reconcile.Result{}, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), "BuildRegistrationFailed")
+				return reconcile.Result{}, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionBuildRegistrationFailed)
 			}
 
 			// Ensure the build-related labels on the BuildRun

@@ -6,16 +6,27 @@ package resources
 
 import (
 	"context"
+	"fmt"
 
 	buildv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // GetBuildObject retrieves an existing Build based on a name and namespace
-func GetBuildObject(ctx context.Context, client client.Client, objectName string, objectNS string, build *buildv1alpha1.Build) error {
-	return client.Get(ctx, types.NamespacedName{Name: objectName, Namespace: objectNS}, build)
+func GetBuildObject(ctx context.Context, client client.Client, buildRun *buildv1alpha1.BuildRun, build *buildv1alpha1.Build) error {
+
+	err := client.Get(ctx, types.NamespacedName{Name: buildRun.Spec.BuildRef.Name, Namespace: buildRun.Namespace}, build)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	} else if apierrors.IsNotFound(err) {
+		// stop reconciling and mark the BuildRun as Failed
+		// we only reconcile again if the status.Update call fails
+		return UpdateConditionWithFalseStatus(ctx, client, buildRun, fmt.Errorf("Build.shipwright.io \"%s\" not found", buildRun.Spec.BuildRef.Name).Error(), ConditionBuildNotFound)
+	}
+	return err
 }
 
 // IsOwnedByBuild checks if the controllerReferences contains a well known owner Kind
