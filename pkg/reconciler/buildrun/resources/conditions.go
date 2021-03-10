@@ -40,6 +40,10 @@ const (
 	ConditionTaskRunGenerationFailed string = "TaskRunGenerationFailed"
 	// ConditionServiceAccountNotFound ...
 	ConditionServiceAccountNotFound string = "ServiceAccountNotFound"
+	// ConditionBuildRegistrationFailed ...
+	ConditionBuildRegistrationFailed string = "BuildRegistrationFailed"
+	// ConditionBuildNotFound ...
+	ConditionBuildNotFound string = "BuildNotFound"
 )
 
 // UpdateBuildRunUsingTaskRunCondition updates the BuildRun Succeeded Condition
