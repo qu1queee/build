@@ -158,6 +158,7 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 			}
 			if svcAccount == nil {
 				// stop reconciling, sa retrieval or generation issues
+				// TODO: We need to delete resources if any
 				return reconcile.Result{}, nil
 			}
 

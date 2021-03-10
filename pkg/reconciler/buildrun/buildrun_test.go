@@ -490,7 +490,7 @@ var _ = Describe("Reconcile BuildRun", func() {
 				// Stub that asserts the BuildRun status fields when
 				// Status updates for a BuildRun take place
 				statusCall := ctl.StubBuildRunStatus(
-					fmt.Sprintf(" \"%s\" not found", saName),
+					fmt.Sprintf("service account %s not found", saName),
 					emptyTaskRunName,
 					build.Condition{
 						Type:   build.Succeeded,
@@ -535,46 +535,6 @@ var _ = Describe("Reconcile BuildRun", func() {
 				Expect(err.Error()).To(ContainSubstring("something wrong happen"))
 				Expect(client.GetCallCount()).To(Equal(4))
 				Expect(client.StatusCallCount()).To(Equal(1))
-			})
-
-			It("use the default serviceAccount when pipeline serviceAccount doesn't exist and generate serviceAccount is false", func() {
-				// override the BuildRun without serviceAccount and generate is false
-				buildRunSample = ctl.BuildRunWithoutSA(buildRunName, buildName)
-
-				// override the initial getClientStub, and generate a new stub
-				// that only contains a Build and Buildrun, none TaskRun
-				stubGetCalls := func(context context.Context, nn types.NamespacedName, object runtime.Object) error {
-					switch object := object.(type) {
-					case *build.Build:
-						buildSample.DeepCopyInto(object)
-						return nil
-					case *build.BuildRun:
-						buildRunSample.DeepCopyInto(object)
-						return nil
-					}
-					return k8serrors.NewNotFound(schema.GroupResource{}, nn.Name)
-				}
-				client.GetCalls(stubGetCalls)
-
-				// Stub that asserts the BuildRun status fields when
-				// Status updates for a BuildRun take place
-				statusCall := ctl.StubBuildRunStatus(
-					fmt.Sprintf(" \"%s\" not found", "default"),
-					emptyTaskRunName,
-					build.Condition{
-						Type:   build.Succeeded,
-						Reason: "ServiceAccountNotFound",
-						Status: corev1.ConditionFalse,
-					},
-					corev1.ConditionFalse,
-					buildSample.Spec,
-					true,
-				)
-				statusWriter.UpdateCalls(statusCall)
-
-				// we mark the BuildRun as Failed and do not reconcile again
-				_, err := reconciler.Reconcile(buildRunRequest)
-				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("fails on a TaskRun creation due to namespaced buildstrategy not found", func() {
