@@ -41,7 +41,7 @@ type StrategyRef struct {
 	Name string `json:"name"`
 
 	// BuildStrategyKind indicates the kind of the buildstrategy, namespaced or cluster scoped.
-	Kind *BuildStrategyKind `json:"kind,omitempty"`
+	Kind *BuildStrategyKind `json:"kind"`
 
 	// API version of the referent
 	// +optional

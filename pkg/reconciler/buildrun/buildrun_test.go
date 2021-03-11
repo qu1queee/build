@@ -12,9 +12,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
-	knativeapi "knative.dev/pkg/apis"
-	knativev1beta1 "knative.dev/pkg/apis/duck/v1beta1"
-
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
+	knativeapi "knative.dev/pkg/apis"
+	knativev1beta1 "knative.dev/pkg/apis/duck/v1beta1"
 	crc "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -33,6 +32,7 @@ import (
 	"github.com/shipwright-io/build/pkg/controller/fakes"
 	"github.com/shipwright-io/build/pkg/ctxlog"
 	buildrunctl "github.com/shipwright-io/build/pkg/reconciler/buildrun"
+	"github.com/shipwright-io/build/pkg/reconciler/buildrun/resources"
 	"github.com/shipwright-io/build/test"
 )
 
@@ -1012,6 +1012,35 @@ var _ = Describe("Reconcile BuildRun", func() {
 
 				_, err := reconciler.Reconcile(buildRunRequest)
 				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("should return an error and stop reconciling if buildstrategy is not found", func() {
+				buildRunSample = ctl.BuildRunWithoutSA(buildRunName, buildName)
+				buildSample = ctl.BuildWithBuildRunDeletions(buildName, strategyName, build.ClusterBuildStrategyKind)
+
+				// Override Stub get calls to include a service account
+				// but none BuildStrategy
+				client.GetCalls(ctl.StubBuildRunGetWithSA(
+					buildSample,
+					buildRunSample,
+					ctl.DefaultServiceAccount(saName)),
+				)
+
+				statusWriter.UpdateCalls(func(_ context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
+					switch buildRun := object.(type) {
+					case *build.BuildRun:
+						if buildRun.Status.IsFailed(build.Succeeded) {
+							return fmt.Errorf("failed miserably")
+						}
+					}
+					return nil
+				})
+
+				_, err := reconciler.Reconcile(buildRunRequest)
+				// we expect an error because a Client.Status Update failed and we expect another reconciliation
+				// to take place
+				Expect(err).ToNot(BeNil())
+				Expect(resources.IsClientStatusUpdateError(err)).To(BeTrue())
 			})
 		})
 	})

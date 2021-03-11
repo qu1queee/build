@@ -882,6 +882,7 @@ func (c *Catalog) BuildRunWithSA(buildRunName string, buildName string, saName s
 				Generate: false,
 			},
 		},
+		Status: build.BuildRunStatus{},
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/pkg/config"
 	"github.com/shipwright-io/build/pkg/ctxlog"
@@ -106,8 +107,12 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 			if build.Status.Registered != corev1.ConditionTrue {
 				// stop reconciling and mark the BuildRun as Failed
 				// we only reconcile again if the status.Update call fails
-				err := fmt.Errorf("the Build is not registered correctly, build: %s, registered status: %s, reason: %s", build.Name, build.Status.Registered, build.Status.Reason)
-				return reconcile.Result{}, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionBuildRegistrationFailed)
+				message := fmt.Sprintf("the Build is not registered correctly, build: %s, registered status: %s, reason: %s", build.Name, build.Status.Registered, build.Status.Reason)
+				if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, message, resources.ConditionBuildRegistrationFailed); updateErr != nil {
+					return reconcile.Result{}, updateErr
+				}
+
+				return reconcile.Result{}, nil
 			}
 
 			// Ensure the build-related labels on the BuildRun
@@ -153,35 +158,30 @@ func (r *ReconcileBuildRun) Reconcile(request reconcile.Request) (reconcile.Resu
 			// Choose a service account to use
 			svcAccount, err := resources.RetrieveServiceAccount(ctx, r.client, build, buildRun)
 			if err != nil {
+				if !resources.IsClientStatusUpdateError(err) && buildRun.Status.IsFailed(v1alpha1.Succeeded) {
+					return reconcile.Result{}, nil
+				}
 				// system call failure, reconcile again
 				return reconcile.Result{}, err
-			}
-			if svcAccount == nil {
-				// stop reconciling, sa retrieval or generation issues
-				// TODO: We need to delete resources if any
-				return reconcile.Result{}, nil
 			}
 
 			strategy, err := r.getReferencedStrategy(ctx, build, buildRun)
 			if err != nil {
-				// system call failure, status.Update, reconcile again
+				if !resources.IsClientStatusUpdateError(err) && buildRun.Status.IsFailed(v1alpha1.Succeeded) {
+					return reconcile.Result{}, nil
+				}
 				return reconcile.Result{}, err
-			}
-			if strategy == nil {
-				// stop reconciling, referenced strategy was not found
-				return reconcile.Result{}, nil
 			}
 
 			// Create the TaskRun, this needs to be the last step in this block to be idempotent
 			generatedTaskRun, err := r.createTaskRun(ctx, svcAccount, strategy, build, buildRun)
 			if err != nil {
+				if !resources.IsClientStatusUpdateError(err) && buildRun.Status.IsFailed(v1alpha1.Succeeded) {
+					ctxlog.Info(ctx, "taskRun generation failed", namespace, request.Namespace, name, request.Name)
+					return reconcile.Result{}, nil
+				}
+				// system call failure, reconcile again
 				return reconcile.Result{}, err
-			}
-
-			// check if taskRun is nil
-			if generatedTaskRun == nil {
-				ctxlog.Info(ctx, "taskRun generation failed", namespace, request.Namespace, name, request.Name)
-				return reconcile.Result{}, nil
 			}
 
 			ctxlog.Info(ctx, "creating TaskRun from BuildRun", namespace, request.Namespace, name, generatedTaskRun.GenerateName, "BuildRun", buildRun.Name)
@@ -365,14 +365,15 @@ func (r *ReconcileBuildRun) VerifyRequestName(ctx context.Context, request recon
 	}
 }
 
-func (r *ReconcileBuildRun) getReferencedStrategy(ctx context.Context, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (buildv1alpha1.BuilderStrategy, error) {
-	var (
-		strategy buildv1alpha1.BuilderStrategy
-		err      error
-	)
-
+func (r *ReconcileBuildRun) getReferencedStrategy(ctx context.Context, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (strategy buildv1alpha1.BuilderStrategy, err error) {
 	if build.Spec.StrategyRef.Kind == nil {
-		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, fmt.Errorf("undefined strategy Kind").Error(), resources.ConditionStrategyKindIsMissing)
+		err = fmt.Errorf("illegal state, strategy kind is unset")
+
+		if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, fmt.Errorf("undefined strategy Kind").Error(), resources.ConditionStrategyKindIsMissing); updateErr != nil {
+			return nil, resources.HandleError("failed to get referenced strategy", err, updateErr)
+		}
+
+		return nil, err
 	}
 
 	switch *build.Spec.StrategyRef.Kind {
@@ -380,24 +381,28 @@ func (r *ReconcileBuildRun) getReferencedStrategy(ctx context.Context, build *bu
 		strategy, err = resources.RetrieveBuildStrategy(ctx, r.client, build)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.BuildStrategyNotFound)
+				if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.BuildStrategyNotFound); updateErr != nil {
+					return nil, resources.HandleError("failed to get referenced strategy", err, updateErr)
+				}
 			}
-			return nil, err
 		}
 	case buildv1alpha1.ClusterBuildStrategyKind:
 		strategy, err = resources.RetrieveClusterBuildStrategy(ctx, r.client, build)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ClusterBuildStrategyNotFound)
+				if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ClusterBuildStrategyNotFound); updateErr != nil {
+					return nil, resources.HandleError("failed to get referenced strategy", err, updateErr)
+				}
 			}
-			return nil, err
 		}
 	default:
-		err := fmt.Errorf("unknown strategy %s", string(*build.Spec.StrategyRef.Kind))
-		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionUnknownStrategyKind)
+		err = fmt.Errorf("unknown strategy %s", string(*build.Spec.StrategyRef.Kind))
+		if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionUnknownStrategyKind); updateErr != nil {
+			return nil, resources.HandleError("failed to get referenced strategy", err, updateErr)
+		}
 	}
 
-	return strategy, nil
+	return strategy, err
 }
 
 func (r *ReconcileBuildRun) createTaskRun(ctx context.Context, serviceAccount *corev1.ServiceAccount, strategy buildv1alpha1.BuilderStrategy, build *buildv1alpha1.Build, buildRun *buildv1alpha1.BuildRun) (*v1beta1.TaskRun, error) {
@@ -407,12 +412,20 @@ func (r *ReconcileBuildRun) createTaskRun(ctx context.Context, serviceAccount *c
 
 	generatedTaskRun, err := resources.GenerateTaskRun(r.config, build, buildRun, serviceAccount.Name, strategy)
 	if err != nil {
-		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionTaskRunGenerationFailed)
+		if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionTaskRunGenerationFailed); updateErr != nil {
+			return nil, resources.HandleError("failed to create taskrun runtime object", err, updateErr)
+		}
+
+		return nil, err
 	}
 
 	// Set OwnerReference for BuildRun and TaskRun
 	if err := r.setOwnerReferenceFunc(buildRun, generatedTaskRun, r.scheme); err != nil {
-		return nil, resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionSetOwnerReferenceFailed)
+		if updateErr := resources.UpdateConditionWithFalseStatus(ctx, r.client, buildRun, err.Error(), resources.ConditionSetOwnerReferenceFailed); updateErr != nil {
+			return nil, resources.HandleError("failed to create taskrun runtime object", err, updateErr)
+		}
+
+		return nil, err
 	}
 
 	return generatedTaskRun, nil

@@ -21,29 +21,19 @@ import (
 	"github.com/shipwright-io/build/pkg/ctxlog"
 )
 
+// Common condition strings for reason, kind, etc.
 const (
-	// ConditionUnknownStrategyKind ...
-	ConditionUnknownStrategyKind string = "UnknownStrategyKind"
-	// ConditionStrategyKindIsMissing ...
-	ConditionStrategyKindIsMissing string = "StrategyKindIsMissing"
-	// ClusterBuildStrategyNotFound ...
-	ClusterBuildStrategyNotFound string = "ClusterBuildStrategyNotFound"
-	// BuildStrategyNotFound ...
-	BuildStrategyNotFound string = "BuildStrategyNotFound"
-	// ConditionSetOwnerReferenceFailed ...
+	ConditionUnknownStrategyKind     string = "UnknownStrategyKind"
+	ConditionStrategyKindIsMissing   string = "StrategyKindIsMissing"
+	ClusterBuildStrategyNotFound     string = "ClusterBuildStrategyNotFound"
+	BuildStrategyNotFound            string = "BuildStrategyNotFound"
 	ConditionSetOwnerReferenceFailed string = "SetOwnerReferenceFailed"
-	// ConditionFailed ...
-	ConditionFailed string = "Failed"
-	// ConditionTaskRunIsMissing ...
-	ConditionTaskRunIsMissing string = "TaskRunIsMissing"
-	// ConditionTaskRunGenerationFailed ...
+	ConditionFailed                  string = "Failed"
+	ConditionTaskRunIsMissing        string = "TaskRunIsMissing"
 	ConditionTaskRunGenerationFailed string = "TaskRunGenerationFailed"
-	// ConditionServiceAccountNotFound ...
-	ConditionServiceAccountNotFound string = "ServiceAccountNotFound"
-	// ConditionBuildRegistrationFailed ...
+	ConditionServiceAccountNotFound  string = "ServiceAccountNotFound"
 	ConditionBuildRegistrationFailed string = "BuildRegistrationFailed"
-	// ConditionBuildNotFound ...
-	ConditionBuildNotFound string = "BuildNotFound"
+	ConditionBuildNotFound           string = "BuildNotFound"
 )
 
 // UpdateBuildRunUsingTaskRunCondition updates the BuildRun Succeeded Condition
@@ -137,5 +127,9 @@ func UpdateConditionWithFalseStatus(ctx context.Context, client client.Client, b
 		Message:            errorMessage,
 	})
 	ctxlog.Debug(ctx, "updating buildRun status", namespace, buildRun.Namespace, name, buildRun.Name)
-	return client.Status().Update(ctx, buildRun)
+	if err := client.Status().Update(ctx, buildRun); err != nil {
+		return &ClientStatusUpdateError{err}
+	}
+
+	return nil
 }

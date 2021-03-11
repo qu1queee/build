@@ -7,7 +7,6 @@ package integration_test
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -155,7 +154,7 @@ var _ = Describe("Integration tests BuildRuns and Service-accounts", func() {
 			br, _ := tb.GetBRTillCompletion(buildRunObject.Name)
 			Expect(err).To(BeNil())
 			buildRunCondition := br.Status.GetCondition(v1alpha1.Succeeded)
-			spew.Dump(buildRunCondition)
+
 			Expect(buildRunCondition).ToNot(BeNil())
 			Expect(buildRunCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(buildRunCondition.Reason).To(Equal("ServiceAccountNotFound"))

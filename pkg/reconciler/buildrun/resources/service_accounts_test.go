@@ -10,15 +10,18 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	build "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/pkg/controller/fakes"
 	"github.com/shipwright-io/build/pkg/reconciler/buildrun/resources"
 	"github.com/shipwright-io/build/test"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	crc "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Operating service accounts", func() {
@@ -83,6 +86,48 @@ var _ = Describe("Operating service accounts", func() {
 			Expect(err).To(BeNil())
 			Expect(len(sa.Secrets)).To(Equal(1))
 			Expect(sa.Secrets[0].Name).To(Equal("foosecret"))
+		})
+
+		It("should return an error if the specified sa is not found", func() {
+			buildRunSample := ctl.BuildRunWithSA(buildRunName, buildName, "foobarsa")
+
+			client.GetCalls(generateGetSAStubWithError(k8serrors.NewNotFound(schema.GroupResource{}, "")))
+
+			client.StatusCalls(func() crc.StatusWriter {
+				statusWriter := &fakes.FakeStatusWriter{}
+				statusWriter.UpdateCalls(func(ctx context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
+					return nil
+				})
+				return statusWriter
+			})
+
+			sa, err := resources.RetrieveServiceAccount(context.TODO(), client, ctl.BuildWithOutputSecret(buildName, "default", "foosecret"), buildRunSample)
+			Expect(sa).To(BeNil())
+			Expect(err).ToNot(BeNil())
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should return multiple errors if the specified sa is not found and the condition update is not working", func() {
+			buildRunSample := ctl.BuildRunWithSA(buildRunName, buildName, "foobarsa")
+
+			client.GetCalls(generateGetSAStubWithError(k8serrors.NewNotFound(schema.GroupResource{}, "")))
+
+			client.StatusCalls(func() crc.StatusWriter {
+				statusWriter := &fakes.FakeStatusWriter{}
+				statusWriter.UpdateCalls(func(ctx context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
+					switch object.(type) {
+					case *build.BuildRun:
+						return fmt.Errorf("failed")
+					}
+					return nil
+				})
+				return statusWriter
+			})
+
+			sa, err := resources.RetrieveServiceAccount(context.TODO(), client, ctl.BuildWithOutputSecret(buildName, "default", "foosecret"), buildRunSample)
+			Expect(sa).To(BeNil())
+			Expect(err).ToNot(BeNil())
+			Expect(resources.IsClientStatusUpdateError(err)).To(BeTrue())
 		})
 	})
 
