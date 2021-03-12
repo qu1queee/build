@@ -22,7 +22,7 @@ func GetBuildObject(ctx context.Context, client client.Client, buildRun *buildv1
 	if err != nil && apierrors.IsNotFound(err) {
 		// stop reconciling and mark the BuildRun as Failed
 		// we only reconcile again if the status.Update call fails
-		return UpdateConditionWithFalseStatus(ctx, client, buildRun, fmt.Errorf("Build.shipwright.io \"%s\" not found", buildRun.Spec.BuildRef.Name).Error(), ConditionBuildNotFound)
+		return UpdateConditionWithFalseStatus(ctx, client, buildRun, fmt.Errorf("build.shipwright.io \"%s\" not found", buildRun.Spec.BuildRef.Name).Error(), ConditionBuildNotFound)
 	}
 
 	return err

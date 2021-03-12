@@ -10,13 +10,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	build "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/pkg/controller/fakes"
 	"github.com/shipwright-io/build/pkg/reconciler/buildrun/resources"
 	"github.com/shipwright-io/build/test"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -104,7 +102,7 @@ var _ = Describe("Operating service accounts", func() {
 			sa, err := resources.RetrieveServiceAccount(context.TODO(), client, ctl.BuildWithOutputSecret(buildName, "default", "foosecret"), buildRunSample)
 			Expect(sa).To(BeNil())
 			Expect(err).ToNot(BeNil())
-			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("should return multiple errors if the specified sa is not found and the condition update is not working", func() {
@@ -116,7 +114,7 @@ var _ = Describe("Operating service accounts", func() {
 				statusWriter := &fakes.FakeStatusWriter{}
 				statusWriter.UpdateCalls(func(ctx context.Context, object runtime.Object, _ ...crc.UpdateOption) error {
 					switch object.(type) {
-					case *build.BuildRun:
+					case *buildv1alpha1.BuildRun:
 						return fmt.Errorf("failed")
 					}
 					return nil
