@@ -5,6 +5,12 @@ metadata:
   name: kaniko
 spec:
   buildSteps:
+    - name: somestep
+      command:
+        - sh
+        - "-c"
+        - "date | tee $(results.current-date-human-readable.path)"
+      image: busybox
     - name: build-and-push
       image: gcr.io/kaniko-project/executor:v1.5.1
       workingDir: /workspace/source
