@@ -57,6 +57,12 @@ func GenerateTaskSpec(
 ) (*v1beta1.TaskSpec, error) {
 
 	generatedTaskSpec := v1beta1.TaskSpec{
+		Results: []v1beta1.TaskResult{
+			{
+				Name:        "current-date-human-readable",
+				Description: "The current date in human readable format",
+			},
+		},
 		Resources: &v1beta1.TaskResources{
 			Inputs: []v1beta1.TaskResource{
 				{
