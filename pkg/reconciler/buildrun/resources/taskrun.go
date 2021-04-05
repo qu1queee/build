@@ -172,8 +172,9 @@ func GenerateTaskSpec(
 		stepLocal := []v1beta1.Step{
 			{
 				Container: corev1.Container{
-					Image:      fmt.Sprintf("%v-source", build.Spec.Output.Image),
-					Name:       "extract_bundle",
+					// hardcode image with source for now
+					Image:      "docker.io/eeeoo/local_shipwright_source:latest-source",
+					Name:       "extract-bundle",
 					WorkingDir: "/workspace/source",
 				},
 			},
