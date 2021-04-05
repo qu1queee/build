@@ -187,6 +187,33 @@ spec:
                 description: Source refers to the Git repository containing the source
                   code to be built.
                 properties:
+                  container:
+                    description: Container describes a container to use for pulling
+                      source code. It supports pushing source code from a local path
+                      in order to be use at a later stage. It also allows to configure
+                      authentication.
+                    properties:
+                      credentials:
+                        description: Credentials references a Secret that contains
+                          credentials to access the image registry.
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                      image:
+                        description: A reference to a container image to use. This
+                          image can be used to bundle source code or simply just for
+                          pulling it at runtime.
+                        type: string
+                      path:
+                        description: Is the path in the local directory from where
+                          the source will be copied.
+                        type: string
+                    required:
+                    - image
+                    type: object
                   contextDir:
                     description: ContextDir is a path to subfolder in the repo. Optional.
                     type: string
@@ -207,8 +234,6 @@ spec:
                   url:
                     description: URL describes the URL of the Git repository.
                     type: string
-                required:
-                - url
                 type: object
               strategy:
                 description: Strategy references the BuildStrategy to use to build

@@ -10,7 +10,15 @@ import (
 
 // Source describes the Git source repository to fetch.
 type Source struct {
+
+	// Container describes a container to use for pulling source code.
+	// It supports pushing source code from a local path in order to be use
+	// at a later stage. It also allows to configure authentication.
+	// +optional
+	Container Container `json:"container"`
+
 	// URL describes the URL of the Git repository.
+	// +optional
 	URL string `json:"url"`
 
 	// Revision describes the Git revision (e.g., branch, tag, commit SHA,
@@ -31,4 +39,21 @@ type Source struct {
 	//
 	// +optional
 	Credentials *corev1.LocalObjectReference `json:"credentials,omitempty"`
+}
+
+// Container describes an specified container to use as a medium to retrieve source code.
+// It supports authentication for pushing or pulling.
+type Container struct {
+	// A reference to a container image to use. This image can be used to bundle source code
+	// or simply just for pulling it at runtime.
+	Image string `json:"image"`
+	// Credentials references a Secret that contains credentials to access
+	// the image registry.
+	//
+	// +optional
+	Credentials *corev1.LocalObjectReference `json:"credentials,omitempty"`
+	// Is the path in the local directory from where the source will be copied.
+	//
+	// +optional
+	Path string `json:"path"`
 }

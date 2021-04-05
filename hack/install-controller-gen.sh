@@ -20,5 +20,7 @@ if [ ! -f "${GOPATH}/bin/controller-gen" ] ; then
     popd >/dev/null 2>&1
 fi
 
+BIN=$(go env GOPATH)/bin
+
 # print controller-gen version
-controller-gen --version
+"${BIN}/controller-gen" --version

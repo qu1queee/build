@@ -23,7 +23,7 @@ const (
 	inputSourceResourceName = "source"
 	inputGitSourceURL       = "url"
 	inputGitSourceRevision  = "revision"
-	inputParamBuilder  = "BUILDER_IMAGE"
+	inputParamBuilder       = "BUILDER_IMAGE"
 	inputParamDockerfile    = "DOCKERFILE"
 	inputParamContextDir    = "CONTEXT_DIR"
 	outputImageResourceName = "image"
@@ -168,6 +168,23 @@ func GenerateTaskSpec(
 		}
 	}
 
+	if build.Spec.Source.Container.Image != "" {
+		stepLocal := []v1beta1.Step{
+			{
+				Container: corev1.Container{
+					// hardcode image with source for now
+					Image:      build.Spec.Source.Container.Image,
+					Name:       "extract-bundle",
+					WorkingDir: "/workspace/source",
+				},
+			},
+		}
+		// prepend local step
+		generatedTaskSpec.Steps = append(stepLocal, generatedTaskSpec.Steps...)
+		// ensure inputs are nuke
+		generatedTaskSpec.Resources.Inputs = []v1beta1.TaskResource{}
+	}
+
 	return &generatedTaskSpec, nil
 }
 
@@ -255,6 +272,9 @@ func GenerateTaskRun(
 			},
 		},
 	}
+
+	// ensure inputs bindings are nuke
+	expectedTaskRun.Spec.Resources.Inputs = []v1beta1.TaskResourceBinding{}
 
 	// assign the annotations from the build strategy, filter out those that should not be propagated
 	taskRunAnnotations := make(map[string]string)
