@@ -8,12 +8,13 @@ require (
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.20.2
 	github.com/onsi/ginkgo v1.12.1
-	github.com/onsi/gomega v1.10.3
+	github.com/onsi/gomega v1.11.0
 	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/pflag v1.0.5
 	github.com/tektoncd/pipeline v0.21.0
 	go.uber.org/zap v1.16.0
+	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c // indirect
 	k8s.io/api v0.19.7
 	k8s.io/apimachinery v0.19.7
 	k8s.io/client-go v0.19.7
