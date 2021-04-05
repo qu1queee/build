@@ -269,8 +269,6 @@ spec:
                       url:
                         description: URL describes the URL of the Git repository.
                         type: string
-                    required:
-                    - url
                     type: object
                   strategy:
                     description: Strategy references the BuildStrategy to use to build

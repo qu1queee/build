@@ -16,6 +16,7 @@ type Source struct {
 	Local string `json:"local"`
 
 	// URL describes the URL of the Git repository.
+	// +optional
 	URL string `json:"url"`
 
 	// Revision describes the Git revision (e.g., branch, tag, commit SHA,
