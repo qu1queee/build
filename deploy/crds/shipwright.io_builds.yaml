@@ -199,6 +199,10 @@ spec:
                           TODO: Add other useful fields. apiVersion, kind, uid?'
                         type: string
                     type: object
+                  local:
+                    description: Local is an absolute path to a local directory where
+                      source code is located
+                    type: string
                   revision:
                     description: "Revision describes the Git revision (e.g., branch,
                       tag, commit SHA, etc.) to fetch. \n If not defined, it will

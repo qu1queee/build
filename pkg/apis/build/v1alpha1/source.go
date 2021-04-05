@@ -10,6 +10,11 @@ import (
 
 // Source describes the Git source repository to fetch.
 type Source struct {
+
+	// Local is an absolute path to a local directory where source code is located
+	// +optional
+	Local string `json:"local"`
+
 	// URL describes the URL of the Git repository.
 	URL string `json:"url"`
 
