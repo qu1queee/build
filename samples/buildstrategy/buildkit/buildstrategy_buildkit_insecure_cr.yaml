@@ -28,6 +28,13 @@ spec:
           chown -R 1000:1000 /tekton/home
     - name: build-and-push
       image: moby/buildkit:master-rootless
+      securityContext:
+        procMount: "Unmasked"
+        runAsUser: 1000
+        capabilities:
+          add:
+          - SETGID
+          - SETUID
       workingDir: /workspace/source/
       env:
       - name: DOCKER_CONFIG
