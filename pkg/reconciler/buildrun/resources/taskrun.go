@@ -23,7 +23,7 @@ const (
 	inputSourceResourceName = "source"
 	inputGitSourceURL       = "url"
 	inputGitSourceRevision  = "revision"
-	inputParamBuilder  = "BUILDER_IMAGE"
+	inputParamBuilder       = "BUILDER_IMAGE"
 	inputParamDockerfile    = "DOCKERFILE"
 	inputParamContextDir    = "CONTEXT_DIR"
 	outputImageResourceName = "image"
@@ -57,6 +57,14 @@ func GenerateTaskSpec(
 ) (*v1beta1.TaskSpec, error) {
 
 	generatedTaskSpec := v1beta1.TaskSpec{
+		Workspaces: []v1beta1.WorkspaceDeclaration{
+			{
+				Name:        "docker-config",
+				Description: "Includes a docker config.json",
+				MountPath:   "/kaniko/.docker",
+				Optional:    true,
+			},
+		},
 		Resources: &v1beta1.TaskResources{
 			Inputs: []v1beta1.TaskResource{
 				{
@@ -256,6 +264,14 @@ func GenerateTaskRun(
 								},
 							},
 						},
+					},
+				},
+			},
+			Workspaces: []v1beta1.WorkspaceBinding{
+				{
+					Name: "docker-config",
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: build.Spec.Output.Credentials.Name,
 					},
 				},
 			},

@@ -7,7 +7,6 @@ spec:
   buildSteps:
     - name: build-and-push
       image: gcr.io/kaniko-project/executor:v1.5.2
-      workingDir: /workspace/source
       securityContext:
         runAsUser: 0
         capabilities:
@@ -20,8 +19,6 @@ spec:
             - SETFCAP
             - KILL
       env:
-        - name: DOCKER_CONFIG
-          value: /tekton/home/.docker
         - name: AWS_ACCESS_KEY_ID
           value: NOT_SET
         - name: AWS_SECRET_KEY
