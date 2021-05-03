@@ -9,7 +9,6 @@ spec:
   source:
     container:
       image: docker.io/eeeoo/morelocal:latest
-      path: /Users/encalada/Documents/Bluemix/go/src/github.com/shipwright-io/sample-go/docker-build
   strategy:
     name: kaniko
     kind: ClusterBuildStrategy

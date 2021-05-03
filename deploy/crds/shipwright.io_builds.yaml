@@ -193,23 +193,10 @@ spec:
                       in order to be use at a later stage. It also allows to configure
                       authentication.
                     properties:
-                      credentials:
-                        description: Credentials references a Secret that contains
-                          credentials to access the image registry.
-                        properties:
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                        type: object
                       image:
                         description: A reference to a container image to use. This
                           image can be used to bundle source code or simply just for
                           pulling it at runtime.
-                        type: string
-                      path:
-                        description: Is the path in the local directory from where
-                          the source will be copied.
                         type: string
                     required:
                     - image
