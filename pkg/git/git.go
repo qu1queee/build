@@ -42,7 +42,7 @@ func ValidateGitURLExists(urlPath string) error {
 		// Note: When the urlPath is an valid public path, however, this path doesn't exist, func will return `authentication required`, this maybe mislead
 		// So convert this error message to `repository not found`
 		_, err := repo.List(&gogitv5.ListOptions{})
-		if err != nil && err == transport.ErrAuthenticationRequired {
+		if err != nil && err == transport.ErrAuthenticationRequired || err.Error() == "context deadline exceeded" {
 			return fmt.Errorf("remote repository unreachable")
 		} else if err != nil {
 			return err
