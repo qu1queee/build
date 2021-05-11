@@ -7,6 +7,7 @@ package resources
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,10 @@ const (
 	inputParamBuilder    = "BUILDER_IMAGE"
 	inputParamDockerfile = "DOCKERFILE"
 	inputParamContextDir = "CONTEXT_DIR"
+)
+
+var (
+	systemReservedParametersRegexp = regexp.MustCompile("BUILDER_IMAGE|DOCKERFILE|CONTEXT_DIR|(shp-.*)")
 )
 
 // getStringTransformations gets us MANDATORY replacements using
@@ -66,6 +71,7 @@ func GenerateTaskSpec(
 	build *buildv1alpha1.Build,
 	buildRun *buildv1alpha1.BuildRun,
 	buildSteps []buildv1alpha1.BuildStep,
+	strategyParams []buildv1alpha1.Parameter,
 ) (*v1beta1.TaskSpec, error) {
 
 	generatedTaskSpec := v1beta1.TaskSpec{
@@ -136,6 +142,27 @@ func GenerateTaskSpec(
 
 	// define results, steps and volumes for sources
 	AmendTaskSpecWithSources(cfg, &generatedTaskSpec, build)
+
+	// Add the strategy defined parameters into the Task spec
+	for _, p := range strategyParams {
+
+		param := v1beta1.ParamSpec{
+			Name:        p.Name,
+			Description: p.Description,
+		}
+
+		// verify if the paramSpec Default requires a default
+		// value or not
+		if p.Default != nil {
+			param.Default = &v1beta1.ArrayOrString{
+				Type:      v1beta1.ParamTypeString,
+				StringVal: *p.Default,
+			}
+		}
+
+		generatedTaskSpec.Params = append(generatedTaskSpec.Params, param)
+
+	}
 
 	// define the steps coming from the build strategy
 	for _, containerValue := range buildSteps {
@@ -212,7 +239,13 @@ func GenerateTaskRun(
 		image = build.Spec.Output.Image
 	}
 
-	taskSpec, err := GenerateTaskSpec(cfg, build, buildRun, strategy.GetBuildSteps())
+	taskSpec, err := GenerateTaskSpec(
+		cfg,
+		build,
+		buildRun,
+		strategy.GetBuildSteps(),
+		strategy.GetParameters(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +352,57 @@ func GenerateTaskRun(
 	}
 
 	expectedTaskRun.Spec.Params = params
+
+	// Ensure a proper override of params between Build and BuildRun
+	// A BuildRun can override a param as long as it was defined in the Build
+	buildUserParams := OverrideParams(build.Spec.Params, buildRun.Spec.Params)
+
+	// list of params that collide with reserved system strategy parameters
+	undesiredParams := []string{}
+
+	// Append params to the TaskRun spec definition
+	for _, p := range buildUserParams {
+
+		if m := systemReservedParametersRegexp.MatchString(p.Name); m {
+			undesiredParams = append(undesiredParams, p.Name)
+		}
+
+		buildParam := v1beta1.Param{
+			Name: p.Name,
+			Value: v1beta1.ArrayOrString{
+				Type:      v1beta1.ParamTypeString,
+				StringVal: p.Value,
+			},
+		}
+		expectedTaskRun.Spec.Params = append(expectedTaskRun.Spec.Params, buildParam)
+	}
+	// if system parameters names are being use, fail the taskRun creation and update the condition message
+	// with a custom error
+	if len(undesiredParams) > 0 {
+		return nil, fmt.Errorf("restricted parameters in use: %s", strings.Join(undesiredParams, ","))
+	}
+
+	// check if there are parameters from strategies where a value was never set, if this is the case,
+	// then throw a custom error message.
+	paramsWithoutValues := []string{}
+
+StrategyParametersLoop:
+	for _, strategyParam := range strategy.GetParameters() {
+		if strategyParam.Default == nil {
+			for _, p := range buildUserParams {
+				if strategyParam.Name == p.Name {
+					// go back to the outer loop
+					continue StrategyParametersLoop
+				}
+			}
+			paramsWithoutValues = append(paramsWithoutValues, strategyParam.Name)
+		}
+	}
+
+	if len(paramsWithoutValues) > 0 {
+		return nil, fmt.Errorf("parameters without a value definition: %s", strings.Join(paramsWithoutValues, ","))
+	}
+
 	return expectedTaskRun, nil
 }
 
