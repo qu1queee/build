@@ -327,8 +327,22 @@ spec:
                     type: string
                 type: object
               latestTaskRunRef:
-                description: "LatestTaskRunRef is the name of the TaskRun responsible for executing this BuildRun. \n TODO: This should be called something like \"TaskRunName\""
+                description: "LatestTaskRunRef is the name of the TaskRun responsible
+                  for executing this BuildRun. \n TODO: This should be called something
+                  like \"TaskRunName\""
                 type: string
+              results:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - name
+                  - value
+                  type: object
+                type: array
               startTime:
                 description: StartTime is the time the build is actually started.
                 format: date-time
