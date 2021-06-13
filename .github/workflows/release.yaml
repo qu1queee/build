@@ -12,48 +12,77 @@ on:
 
 jobs:
   release:
-    if: ${{ github.repository == 'shipwright-io/build' }}
+    # if: ${{ github.repository == 'shipwright-io/build' }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
-    - name: Build Release Changelog
+    # - name: Build Release Changelog
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #     PREVIOUS_TAG: ${{ github.event.inputs.tags }}
+    #   run: |
+    #     # might not be necessary but make sure
+    #     chmod +x "${GITHUB_WORKSPACE}/.github/draft_release_notes.sh"
+    #     export GITHUB_TOKEN
+    #     export PREVIOUS_TAG
+    #     "${GITHUB_WORKSPACE}/.github/draft_release_notes.sh"
+    # - name: Draft release
+    #   id: draft_release
+    #   uses: actions/create-release@v1
+    #   with:
+    #     release_name: "Shipwright Build release ${{ github.event.inputs.release }}"
+    #     tag_name: ${{ github.event.inputs.release }}
+    #     body_path: Changes.md
+    #     draft: true
+    #     prerelease: true
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Install Go
+    #   uses: actions/setup-go@v2
+    # - name: Install Ko
+    #   uses: imjasonh/setup-ko@20b7695b536c640edfafdd378d96c760460f29d6
+
+    # - name: Generate and upload release.yaml
+    #   env:
+    #     REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+    #     REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+    #     IMAGE_HOST: quay.io
+    #     IMAGE: shipwright/shipwright-operator
+    #     TAG: ${{ github.event.inputs.release }}
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     make release
+    #     gh release upload ${TAG} release.yaml
+
+    - name: Update docs after release creation
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PREVIOUS_TAG: ${{ github.event.inputs.tags }}
+        NEW_TAG: ${{ github.event.inputs.release }}
       run: |
-        # might not be necessary but make sure
-        chmod +x "${GITHUB_WORKSPACE}/.github/draft_release_notes.sh"
-        export GITHUB_TOKEN
-        export PREVIOUS_TAG
-        "${GITHUB_WORKSPACE}/.github/draft_release_notes.sh"
-    - name: Draft release
-      id: draft_release
-      uses: actions/create-release@v1
+        # Update README.md with new tag
+
+        sed -i 's#https://github.com/shipwright-io/build/releases/download/'"$PREVIOUS_TAG"'/release.yaml#https://github.com/shipwright-io/build/releases/download/'"$NEW_TAG"'/release.yaml#g' README.md
+        sed -i '/Examples @ HEAD/a | ['"$NEW_TAG"'](https://github.com/shipwright-io/build/releases/tag/'"$NEW_TAG"')    | [Docs @ '"$NEW_TAG"'](https://github.com/shipwright-io/build/tree/'"$NEW_TAG"'/docs) | [Examples @ '"$newTag"'](https://github.com/shipwright-io/build/tree/'"$NEW_TAG"'/samples) |' README.md
+
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v3
+      env:
+        NEW_TAG: ${{ github.event.inputs.release }}
       with:
-        release_name: "Shipwright Build release ${{ github.event.inputs.release }}"
-        tag_name: ${{ github.event.inputs.release }}
-        body_path: Changes.md
-        draft: true
-        prerelease: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Install Go
-      uses: actions/setup-go@v2
-    - name: Install Ko
-      uses: imjasonh/setup-ko@20b7695b536c640edfafdd378d96c760460f29d6
-
-    - name: Generate and upload release.yaml
-      env:
-        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-        REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-        IMAGE_HOST: quay.io
-        IMAGE: shipwright/shipwright-operator
-        TAG: ${{ github.event.inputs.release }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        make release
-        gh release upload ${TAG} release.yaml
+        commit-message: Update Readme with new Tag
+        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+        signoff: false
+        labels: |
+          kind/documentation
+        branch: update-readme-tag-refs
+        delete-branch: true
+        title: 'Update Readme with new tag'
+        body: |
+          Update README.md
+          - Bump tag references to ${NEW_TAG}
+        draft: false
