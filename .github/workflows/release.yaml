@@ -12,7 +12,6 @@ on:
 
 jobs:
   release:
-    if: ${{ github.repository == 'shipwright-io/build' }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -68,14 +67,13 @@ jobs:
         sed -i 's#https://github.com/shipwright-io/build/releases/download/'"$PREVIOUS_TAG"'/release.yaml#https://github.com/shipwright-io/build/releases/download/'"$NEW_TAG"'/release.yaml#g' README.md
         sed -i '/Examples @ HEAD/a | ['"$NEW_TAG"'](https://github.com/shipwright-io/build/releases/tag/'"$NEW_TAG"')    | [Docs @ '"$NEW_TAG"'](https://github.com/shipwright-io/build/tree/'"$NEW_TAG"'/docs) | [Examples @ '"$NEW_TAG"'](https://github.com/shipwright-io/build/tree/'"$NEW_TAG"'/samples) |' README.md
 
-
     - name: Create Readme commits
       run: |
         git config user.name ${{ github.actor }}
         git config user.email ${{ github.actor }}@users.noreply.github.com
         git add README.md
         git commit -m "Update Readme with new Tag ${{ github.event.inputs.release }}"
-
+        git clean -f
     - name: Create Readme PR
       uses: peter-evans/create-pull-request@v3
       with:
