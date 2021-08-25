@@ -1,0 +1,10 @@
+---
+apiVersion: shipwright.io/v1alpha1
+kind: BuildRun
+metadata:
+  name: tekton-cve-2021-29923-parsecidr
+spec:
+  buildRef:
+    name: tekton-cve-2021-29923
+  serviceAccount:
+    generate: true

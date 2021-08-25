@@ -1,0 +1,13 @@
+---
+apiVersion: shipwright.io/v1alpha1
+kind: BuildRun
+metadata:
+  name: shp-cve-2021-29923-parseip
+spec:
+  buildRef:
+    name: shp-cve-2021-29923
+  paramValues:
+  - name: function-name
+    value: "net.ParseIP"
+  serviceAccount:
+    generate: true
