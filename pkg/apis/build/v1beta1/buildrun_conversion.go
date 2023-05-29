@@ -5,13 +5,65 @@
 package v1beta1
 
 import (
+	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 // ConvertTo converts this BuildRun to the Hub version (v1alpha1)
 func (src *BuildRun) ConvertTo(dstRaw conversion.Hub) error {
-	// dst := dstRaw.(*v1alpha1.BuildRun)
+	dst := dstRaw.(*v1alpha1.BuildRun)
+	dst.ObjectMeta = src.ObjectMeta
 
+	// BuildRunSpec BuildSpec: TODO
+	dst.Spec.BuildSpec = &v1alpha1.BuildSpec{}
+
+	// BuildRunSpec BuildRef
+	dst.Spec.BuildRef = &v1alpha1.BuildRef{
+		Name: src.Spec.Build.Name,
+	}
+
+	// BuildRunSpec ServiceAccount
+	dst.Spec.ServiceAccount = &v1alpha1.ServiceAccount{
+		Name: src.Spec.ServiceAccount,
+	}
+
+	// BuildRunSpec Timeout
+	dst.Spec.Timeout = src.Spec.Timeout
+
+	// BuildRunSpec ParamValues
+	dst.Spec.ParamValues = nil
+	for _, p := range src.Spec.ParamValues {
+		new := v1alpha1.ParamValue{}
+		p.convertTo(&new)
+		dst.Spec.ParamValues = append(dst.Spec.ParamValues, new)
+	}
+
+	// BuildRunSpec Image
+	dst.Spec.Output = &v1alpha1.Image{
+		Image: src.Spec.Output.Image,
+		Credentials: &corev1.LocalObjectReference{
+			Name: *src.Spec.Output.PushSecret,
+		},
+		Annotations: src.Spec.Output.Annotations,
+		Labels:      src.Spec.Output.Labels,
+	}
+
+	// BuildRunSpec State
+	dst.Spec.State = (*v1alpha1.BuildRunRequestedState)(src.Spec.State)
+
+	// BuildRunSpec Env
+	dst.Spec.Env = src.Spec.Env
+
+	// BuildRunSpec Retention
+	dst.Spec.Retention = (*v1alpha1.BuildRunRetention)(src.Spec.Retention)
+
+	// BuildRunSpec Volumes
+	for i, vol := range src.Spec.Volumes {
+		dst.Spec.Volumes[i].Name = vol.Name
+		dst.Spec.Volumes[i].VolumeSource = vol.VolumeSource
+
+	}
 	return nil
 }
 
