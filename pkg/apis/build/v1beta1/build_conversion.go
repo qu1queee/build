@@ -16,69 +16,72 @@ func (src *Build) ConvertTo(dstRaw conversion.Hub) error {
 
 	dst.ObjectMeta = src.ObjectMeta
 
+	return src.Spec.ConvertTo(&dst.Spec)
+}
+
+func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	// BuildSpec Source
-	dst.Spec.Source = getBuildSource(*src)
+	bs.Source = getBuildSource(*srcSpec)
 
 	// BuildSpec Sources: todo
 	// Note: conversion does not matches, as we come from v1beta1, where
 	// we only have a single source
 
 	// BuildSpec Trigger
-	for _, t := range src.Spec.Trigger.When {
+	for _, t := range srcSpec.Trigger.When {
 		tw := v1alpha1.TriggerWhen{}
 		t.convertTo(&tw)
-		dst.Spec.Trigger.When = append(dst.Spec.Trigger.When, tw)
+		bs.Trigger.When = append(bs.Trigger.When, tw)
 	}
 
 	// BuildSpec Strategy
-	dst.Spec.Strategy = v1alpha1.Strategy{
-		Name:       src.Spec.StrategyName(),
-		Kind:       (*v1alpha1.BuildStrategyKind)(src.Spec.Strategy.Kind),
-		APIVersion: src.Spec.Strategy.APIVersion,
+	bs.Strategy = v1alpha1.Strategy{
+		Name:       srcSpec.StrategyName(),
+		Kind:       (*v1alpha1.BuildStrategyKind)(srcSpec.Strategy.Kind),
+		APIVersion: srcSpec.Strategy.APIVersion,
 	}
 
 	// BuildSpec Builder, no migration possible
-	dst.Spec.Builder = nil
+	bs.Builder = nil
 
 	// BuildSpec Dockerfile, no migration possible
-	dst.Spec.Dockerfile = nil
+	bs.Dockerfile = nil
 
 	// BuildSpec ParamValues
-	dst.Spec.ParamValues = nil
-	for _, p := range src.Spec.ParamValues {
+	bs.ParamValues = nil
+	for _, p := range srcSpec.ParamValues {
 		new := v1alpha1.ParamValue{}
 		p.convertTo(&new)
-		dst.Spec.ParamValues = append(dst.Spec.ParamValues, new)
+		bs.ParamValues = append(bs.ParamValues, new)
 	}
 
 	// BuildSpec Output
 	insecure := false
-	dst.Spec.Output.Image = src.Spec.Output.Image
-	dst.Spec.Output.Insecure = &insecure
-	dst.Spec.Output.Credentials.Name = *src.Spec.Output.PushSecret
-	dst.Spec.Output.Annotations = src.Spec.Output.Annotations
-	dst.Spec.Output.Labels = src.Spec.Output.Labels
+	bs.Output.Image = srcSpec.Output.Image
+	bs.Output.Insecure = &insecure
+	bs.Output.Credentials.Name = *srcSpec.Output.PushSecret
+	bs.Output.Annotations = srcSpec.Output.Annotations
+	bs.Output.Labels = srcSpec.Output.Labels
 
 	// BuildSpec Timeout
-	dst.Spec.Timeout = src.Spec.Timeout
+	bs.Timeout = srcSpec.Timeout
 
 	// BuildSpec Env
-	dst.Spec.Env = src.Spec.Env
+	bs.Env = srcSpec.Env
 
 	// BuildSpec Retention
-	dst.Spec.Retention.FailedLimit = src.Spec.Retention.FailedLimit
-	dst.Spec.Retention.SucceededLimit = src.Spec.Retention.SucceededLimit
-	dst.Spec.Retention.TTLAfterFailed = src.Spec.Retention.TTLAfterFailed
-	dst.Spec.Retention.TTLAfterSucceeded = src.Spec.Retention.TTLAfterSucceeded
+	bs.Retention.FailedLimit = srcSpec.Retention.FailedLimit
+	bs.Retention.SucceededLimit = srcSpec.Retention.SucceededLimit
+	bs.Retention.TTLAfterFailed = srcSpec.Retention.TTLAfterFailed
+	bs.Retention.TTLAfterSucceeded = srcSpec.Retention.TTLAfterSucceeded
 
 	// BuildSpec Volumes
-	for i, vol := range src.Spec.Volumes {
-		dst.Spec.Volumes[i].Name = vol.Name
-		dst.Spec.Volumes[i].Description = nil
-		dst.Spec.Volumes[i].VolumeSource = vol.VolumeSource
+	for i, vol := range srcSpec.Volumes {
+		bs.Volumes[i].Name = vol.Name
+		bs.Volumes[i].Description = nil
+		bs.Volumes[i].VolumeSource = vol.VolumeSource
 
 	}
-
 	return nil
 }
 
@@ -119,31 +122,31 @@ func (p TriggerWhen) convertTo(dest *v1alpha1.TriggerWhen) {
 
 }
 
-func getBuildSource(src Build) v1alpha1.Source {
+func getBuildSource(src BuildSpec) v1alpha1.Source {
 	source := v1alpha1.Source{}
 	var credentials corev1.LocalObjectReference
 	var revision *string
 
-	switch src.Spec.Source.Type {
+	switch src.Source.Type {
 	case OCIArtifactType:
 		credentials = corev1.LocalObjectReference{
-			Name: *src.Spec.Source.OCIArtifact.PullSecret,
+			Name: *src.Source.OCIArtifact.PullSecret,
 		}
 		source.BundleContainer = &v1alpha1.BundleContainer{
-			Image: src.Spec.Source.OCIArtifact.Image,
-			Prune: (*v1alpha1.PruneOption)(src.Spec.Source.OCIArtifact.Prune),
+			Image: src.Source.OCIArtifact.Image,
+			Prune: (*v1alpha1.PruneOption)(src.Source.OCIArtifact.Prune),
 		}
 	default:
 		credentials = corev1.LocalObjectReference{
-			Name: *src.Spec.Source.GitSource.CloneSecret,
+			Name: *src.Source.GitSource.CloneSecret,
 		}
-		source.URL = src.Spec.Source.GitSource.URL
-		revision = src.Spec.Source.GitSource.Revision
+		source.URL = src.Source.GitSource.URL
+		revision = src.Source.GitSource.Revision
 	}
 
 	source.Credentials = &credentials
 	source.Revision = revision
-	source.ContextDir = src.Spec.Source.ContextDir
+	source.ContextDir = src.Source.ContextDir
 
 	return source
 }

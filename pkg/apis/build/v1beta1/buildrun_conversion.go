@@ -15,8 +15,13 @@ func (src *BuildRun) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*v1alpha1.BuildRun)
 	dst.ObjectMeta = src.ObjectMeta
 
-	// BuildRunSpec BuildSpec: TODO
-	dst.Spec.BuildSpec = &v1alpha1.BuildSpec{}
+	// BuildRunSpec BuildSpec
+	newBuildSpec := v1alpha1.BuildSpec{}
+	if err := src.Spec.Build.Build.ConvertTo(&newBuildSpec); err != nil {
+		return err
+	}
+
+	dst.Spec.BuildSpec = &newBuildSpec
 
 	// BuildRunSpec BuildRef
 	dst.Spec.BuildRef = &v1alpha1.BuildRef{
