@@ -1,0 +1,38 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: shp-build-webhook
+  namespace: shipwright-build
+  labels:
+    name: shp-build-webhook
+webhooks:
+- name: conversion.webhook.configuration
+  admissionReviewVersions:
+  - v1
+  rules:
+  - operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    - CONNECT
+    apiGroups:
+      - "shipwright.io"
+    apiVersions:
+      - v1
+    resources:
+      - builds
+      - buildruns
+      - buildstrategies
+      - clusterbuildstrategies
+    scope: Namespaced
+  clientConfig:
+    caBundle: CA_BUNDLE
+    service:
+      name: shp-build-webhook
+      namespace: shipwright-build
+      path: "/convert"
+      port: 443
+  sideEffects: None
+  timeoutSeconds: 5
+  failurePolicy: Fail
+
