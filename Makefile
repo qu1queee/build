@@ -114,6 +114,11 @@ generate:
 	hack/install-controller-gen.sh
 	"$(CONTROLLER_GEN)" crd rbac:roleName=manager-role webhook paths="./..." output:crd:dir=deploy/crds
 
+.PHONY: prepare-conversion
+prepare-conversion: generate
+	hack/generate-cert.sh
+	hack/patch-crds-with-conversion.sh
+
 .PHONY: verify-generate
 verify-generate: generate
 	@hack/verify-generate.sh
