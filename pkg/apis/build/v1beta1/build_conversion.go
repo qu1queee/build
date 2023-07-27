@@ -28,10 +28,12 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	// we only have a single source
 
 	// BuildSpec Trigger
-	for _, t := range srcSpec.Trigger.When {
-		tw := v1alpha1.TriggerWhen{}
-		t.convertTo(&tw)
-		bs.Trigger.When = append(bs.Trigger.When, tw)
+	if srcSpec.Trigger != nil {
+		for _, t := range srcSpec.Trigger.When {
+			tw := v1alpha1.TriggerWhen{}
+			t.convertTo(&tw)
+			bs.Trigger.When = append(bs.Trigger.When, tw)
+		}
 	}
 
 	// BuildSpec Strategy
@@ -59,7 +61,9 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	insecure := false
 	bs.Output.Image = srcSpec.Output.Image
 	bs.Output.Insecure = &insecure
-	bs.Output.Credentials.Name = *srcSpec.Output.PushSecret
+	if srcSpec.Output.PushSecret != nil {
+		bs.Output.Credentials.Name = *srcSpec.Output.PushSecret
+	}
 	bs.Output.Annotations = srcSpec.Output.Annotations
 	bs.Output.Labels = srcSpec.Output.Labels
 
@@ -70,10 +74,19 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	bs.Env = srcSpec.Env
 
 	// BuildSpec Retention
-	bs.Retention.FailedLimit = srcSpec.Retention.FailedLimit
-	bs.Retention.SucceededLimit = srcSpec.Retention.SucceededLimit
-	bs.Retention.TTLAfterFailed = srcSpec.Retention.TTLAfterFailed
-	bs.Retention.TTLAfterSucceeded = srcSpec.Retention.TTLAfterSucceeded
+	if srcSpec.Retention != nil && srcSpec.Retention.FailedLimit != nil {
+		bs.Retention.FailedLimit = srcSpec.Retention.FailedLimit
+	}
+	if srcSpec.Retention != nil && srcSpec.Retention.SucceededLimit != nil {
+
+		bs.Retention.SucceededLimit = srcSpec.Retention.SucceededLimit
+	}
+	if srcSpec.Retention != nil && srcSpec.Retention.TTLAfterFailed != nil {
+		bs.Retention.TTLAfterFailed = srcSpec.Retention.TTLAfterFailed
+	}
+	if srcSpec.Retention != nil && srcSpec.Retention.TTLAfterSucceeded != nil {
+		bs.Retention.TTLAfterSucceeded = srcSpec.Retention.TTLAfterSucceeded
+	}
 
 	// BuildSpec Volumes
 	for i, vol := range srcSpec.Volumes {
@@ -93,6 +106,9 @@ func (dst *Build) ConvertFrom(srcRaw conversion.Hub) error {
 
 // todo: could be placed in its own file
 func (p ParamValue) convertTo(dest *v1alpha1.ParamValue) {
+	if p.SingleValue == nil || p.SingleValue.Value == nil {
+		return
+	}
 	dest.Value = p.Value
 	dest.ConfigMapValue = (*v1alpha1.ObjectKeyRef)(p.ConfigMapValue)
 	dest.SecretValue = (*v1alpha1.ObjectKeyRef)(p.SecretValue)
@@ -137,8 +153,10 @@ func getBuildSource(src BuildSpec) v1alpha1.Source {
 			Prune: (*v1alpha1.PruneOption)(src.Source.OCIArtifact.Prune),
 		}
 	default:
-		credentials = corev1.LocalObjectReference{
-			Name: *src.Source.GitSource.CloneSecret,
+		if *&src.Source.GitSource.CloneSecret != nil {
+			credentials = corev1.LocalObjectReference{
+				Name: *src.Source.GitSource.CloneSecret,
+			}
 		}
 		source.URL = src.Source.GitSource.URL
 		revision = src.Source.GitSource.Revision
