@@ -7,32 +7,28 @@ package v1beta1
 import (
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 // ConvertTo converts this Build to the Hub version (v1alpha1)
-func (src *Build) ConvertTo(dstRaw conversion.Hub) error {
-	dst := dstRaw.(*v1alpha1.Build)
-
-	dst.ObjectMeta = src.ObjectMeta
-
-	return src.Spec.ConvertTo(&dst.Spec)
+func (src *Build) ConvertTo(bs *v1alpha1.Build) error {
+	bs.ObjectMeta = src.ObjectMeta
+	return src.Spec.ConvertTo(&bs.Spec)
 }
 
 func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	// BuildSpec Source
 	bs.Source = getBuildSource(*srcSpec)
 
-	// BuildSpec Sources: todo
-	// Note: conversion does not matches, as we come from v1beta1, where
-	// we only have a single source
-
 	// BuildSpec Trigger
 	if srcSpec.Trigger != nil {
+		bs.Trigger = &v1alpha1.Trigger{}
 		for _, t := range srcSpec.Trigger.When {
 			tw := v1alpha1.TriggerWhen{}
 			t.convertTo(&tw)
 			bs.Trigger.When = append(bs.Trigger.When, tw)
+		}
+		if srcSpec.Trigger.TriggerSecret != nil {
+			bs.Trigger.SecretRef = &corev1.LocalObjectReference{Name: *srcSpec.Trigger.TriggerSecret}
 		}
 	}
 
@@ -62,6 +58,7 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	bs.Output.Image = srcSpec.Output.Image
 	bs.Output.Insecure = &insecure
 	if srcSpec.Output.PushSecret != nil {
+		bs.Output.Credentials = &corev1.LocalObjectReference{}
 		bs.Output.Credentials.Name = *srcSpec.Output.PushSecret
 	}
 	bs.Output.Annotations = srcSpec.Output.Annotations
@@ -74,6 +71,7 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	bs.Env = srcSpec.Env
 
 	// BuildSpec Retention
+	bs.Retention = &v1alpha1.BuildRetention{}
 	if srcSpec.Retention != nil && srcSpec.Retention.FailedLimit != nil {
 		bs.Retention.FailedLimit = srcSpec.Retention.FailedLimit
 	}
@@ -89,29 +87,33 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	}
 
 	// BuildSpec Volumes
-	for i, vol := range srcSpec.Volumes {
-		bs.Volumes[i].Name = vol.Name
-		bs.Volumes[i].Description = nil
-		bs.Volumes[i].VolumeSource = vol.VolumeSource
-
+	bs.Volumes = []v1alpha1.BuildVolume{}
+	for _, vol := range srcSpec.Volumes {
+		aux := v1alpha1.BuildVolume{
+			Name:         vol.Name,
+			Description:  nil,
+			VolumeSource: vol.VolumeSource,
+		}
+		bs.Volumes = append(bs.Volumes, aux)
 	}
 	return nil
 }
 
-// ConvertFrom converts from the Hub version (v1alpha1) to this version.
-// TODO: Not needed?
-func (dst *Build) ConvertFrom(srcRaw conversion.Hub) error {
-	return nil
-}
-
-// todo: could be placed in its own file
 func (p ParamValue) convertTo(dest *v1alpha1.ParamValue) {
-	if p.SingleValue == nil || p.SingleValue.Value == nil {
-		return
+
+	if p.SingleValue != nil && p.SingleValue.Value != nil {
+		dest.SingleValue = &v1alpha1.SingleValue{}
+		dest.Value = p.Value
 	}
-	dest.Value = p.Value
-	dest.ConfigMapValue = (*v1alpha1.ObjectKeyRef)(p.ConfigMapValue)
-	dest.SecretValue = (*v1alpha1.ObjectKeyRef)(p.SecretValue)
+
+	if p.ConfigMapValue != nil {
+		dest.ConfigMapValue = &v1alpha1.ObjectKeyRef{}
+		dest.ConfigMapValue = (*v1alpha1.ObjectKeyRef)(p.ConfigMapValue)
+	}
+	if p.SecretValue != nil {
+		dest.SecretValue = (*v1alpha1.ObjectKeyRef)(p.SecretValue)
+	}
+
 	dest.Name = p.Name
 
 	for _, singleValue := range p.Values {
@@ -123,11 +125,11 @@ func (p ParamValue) convertTo(dest *v1alpha1.ParamValue) {
 	}
 }
 
-// todo: could be placed in its own file
 func (p TriggerWhen) convertTo(dest *v1alpha1.TriggerWhen) {
 	dest.Name = p.Name
 	dest.Type = v1alpha1.TriggerType(p.Type)
 
+	dest.GitHub = &v1alpha1.WhenGitHub{}
 	for _, e := range p.GitHub.Events {
 		dest.GitHub.Events = append(dest.GitHub.Events, v1alpha1.GitHubEventName(e))
 	}
@@ -153,13 +155,16 @@ func getBuildSource(src BuildSpec) v1alpha1.Source {
 			Prune: (*v1alpha1.PruneOption)(src.Source.OCIArtifact.Prune),
 		}
 	default:
-		if *&src.Source.GitSource.CloneSecret != nil {
+		if src.Source.GitSource != nil && src.Source.GitSource.CloneSecret != nil {
 			credentials = corev1.LocalObjectReference{
 				Name: *src.Source.GitSource.CloneSecret,
 			}
 		}
-		source.URL = src.Source.GitSource.URL
-		revision = src.Source.GitSource.Revision
+		if src.Source.GitSource != nil {
+			source.URL = src.Source.GitSource.URL
+			revision = src.Source.GitSource.Revision
+		}
+
 	}
 
 	source.Credentials = &credentials

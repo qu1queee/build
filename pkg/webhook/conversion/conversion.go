@@ -81,7 +81,7 @@ func serve(w http.ResponseWriter, r *http.Request, convert convertFunc, ctx cont
 		return
 	}
 
-	ctxlog.Info(ctx, "handling request: %v", body)
+	ctxlog.Info(ctx, "handling request")
 
 	obj, gvk, err := serializer.Decode(body, nil, nil)
 	if err != nil {

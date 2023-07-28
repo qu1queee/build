@@ -25,6 +25,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 	fromVersion := Object.GetAPIVersion()
 
 	if fromVersion == "shipwright.io/v1alpha1" {
+		ctxlog.Info(ctx, "nothing to convert")
 		return convertedObject, statusSucceed()
 	}
 
@@ -46,9 +47,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 
 				buildAlpha.TypeMeta = build.TypeMeta
 				buildAlpha.TypeMeta.APIVersion = "shipwright.io/v1alpha1"
-				buildAlpha.ObjectMeta = build.ObjectMeta
-
-				build.Spec.ConvertTo(&buildAlpha.Spec)
+				build.ConvertTo(&buildAlpha)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildAlpha)
 				if err != nil {
