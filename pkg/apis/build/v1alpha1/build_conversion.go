@@ -4,6 +4,8 @@
 
 package v1alpha1
 
-func (*Build) Hub() {
-
+// ConvertTo converts this Build to the Hub version (v1alpha1)
+func (src *Build) ConvertFrom(bs *Build) error {
+	bs.ObjectMeta = src.ObjectMeta
+	return nil
 }

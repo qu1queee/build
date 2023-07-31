@@ -15,9 +15,109 @@ func (src *Build) ConvertTo(bs *v1alpha1.Build) error {
 	return src.Spec.ConvertTo(&bs.Spec)
 }
 
+func (src *Build) ConvertFrom(bs *v1alpha1.Build) error {
+	src.ObjectMeta = bs.ObjectMeta
+	return src.Spec.ConvertFrom(&bs.Spec)
+}
+
+func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
+
+	specSource := Source{}
+
+	if orig.Source.BundleContainer != nil {
+		specSource.Type = OCIArtifactType
+		specSource.OCIArtifact = &OCIArtifact{
+			Image:      orig.Source.BundleContainer.Image,
+			Prune:      (*PruneOption)(orig.Source.BundleContainer.Prune),
+			PullSecret: &orig.Source.Credentials.Name,
+		}
+	} else {
+		specSource.Type = GitType
+		specSource.GitSource = &Git{
+			URL:         orig.Source.URL,
+			Revision:    orig.Source.Revision,
+			CloneSecret: &orig.Source.Credentials.Name,
+		}
+	}
+
+	specSource.ContextDir = orig.Source.ContextDir
+
+	dest.Source = specSource
+
+	// Triggers
+	if orig.Trigger != nil {
+		dest.Trigger = &Trigger{}
+		for _, t := range orig.Trigger.When {
+			tw := convertToBetaTriggers(&t)
+			dest.Trigger.When = append(dest.Trigger.When, tw)
+		}
+		if orig.Trigger.SecretRef != nil {
+			dest.Trigger.TriggerSecret = &orig.Trigger.SecretRef.Name
+		}
+	}
+
+	// Strategy
+	dest.Strategy = Strategy{
+		Name:       orig.StrategyName(),
+		Kind:       (*BuildStrategyKind)(orig.Strategy.Kind),
+		APIVersion: orig.Strategy.APIVersion,
+	}
+
+	// BuildSpec ParamValues
+	dest.ParamValues = []ParamValue{}
+	for _, p := range orig.ParamValues {
+		new := convertBetaParamValue(p)
+		dest.ParamValues = append(dest.ParamValues, new)
+	}
+
+	// BuildSpec Output
+	dest.Output.Image = orig.Output.Image
+	if orig.Output.Credentials != nil {
+		dest.Output.PushSecret = &orig.Output.Credentials.Name
+	}
+
+	dest.Output.Annotations = orig.Output.Annotations
+	dest.Output.Labels = orig.Output.Labels
+
+	// BuildSpec Timeout
+	dest.Timeout = orig.Timeout
+
+	// BuildSpec Env
+	dest.Env = orig.Env
+
+	// BuildSpec Retention
+	dest.Retention = &BuildRetention{}
+	if orig.Retention != nil {
+		if orig.Retention.FailedLimit != nil {
+			dest.Retention.FailedLimit = orig.Retention.FailedLimit
+		}
+		if orig.Retention.SucceededLimit != nil {
+			dest.Retention.SucceededLimit = orig.Retention.SucceededLimit
+		}
+		if orig.Retention.TTLAfterFailed != nil {
+			dest.Retention.TTLAfterFailed = orig.Retention.TTLAfterFailed
+		}
+		if orig.Retention.TTLAfterSucceeded != nil {
+			dest.Retention.TTLAfterSucceeded = orig.Retention.TTLAfterSucceeded
+		}
+	}
+
+	// BuildSpec Volumes
+	dest.Volumes = []BuildVolume{}
+	for _, vol := range orig.Volumes {
+		aux := BuildVolume{
+			Name:         vol.Name,
+			VolumeSource: vol.VolumeSource,
+		}
+		dest.Volumes = append(dest.Volumes, aux)
+	}
+
+	return nil
+}
+
 func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	// BuildSpec Source
-	bs.Source = getBuildSource(*srcSpec)
+	bs.Source = getAlphaBuildSource(*srcSpec)
 
 	// BuildSpec Trigger
 	if srcSpec.Trigger != nil {
@@ -140,7 +240,52 @@ func (p TriggerWhen) convertTo(dest *v1alpha1.TriggerWhen) {
 
 }
 
-func getBuildSource(src BuildSpec) v1alpha1.Source {
+func convertBetaParamValue(orig v1alpha1.ParamValue) ParamValue {
+	p := ParamValue{}
+	if orig.SingleValue != nil && orig.SingleValue.Value != nil {
+		p.SingleValue = &SingleValue{}
+		p.Value = orig.Value
+	}
+
+	if orig.ConfigMapValue != nil {
+		p.ConfigMapValue = &ObjectKeyRef{}
+		p.ConfigMapValue = (*ObjectKeyRef)(orig.ConfigMapValue)
+	}
+	if orig.SecretValue != nil {
+		p.SecretValue = (*ObjectKeyRef)(orig.SecretValue)
+	}
+
+	p.Name = orig.Name
+
+	for _, singleValue := range orig.Values {
+		p.Values = append(p.Values, SingleValue{
+			Value:          singleValue.Value,
+			ConfigMapValue: (*ObjectKeyRef)(singleValue.ConfigMapValue),
+			SecretValue:    (*ObjectKeyRef)(singleValue.SecretValue),
+		})
+	}
+	return p
+}
+
+func convertToBetaTriggers(orig *v1alpha1.TriggerWhen) TriggerWhen {
+	dest := TriggerWhen{
+		Name: orig.Name,
+		Type: TriggerType(orig.Type),
+	}
+
+	dest.GitHub = &WhenGitHub{}
+	for _, e := range orig.GitHub.Events {
+		dest.GitHub.Events = append(dest.GitHub.Events, GitHubEventName(e))
+	}
+
+	dest.GitHub.Branches = orig.GetBranches(v1alpha1.GitHubWebHookTrigger)
+	dest.Image = (*WhenImage)(orig.Image)
+	dest.ObjectRef = (*WhenObjectRef)(orig.ObjectRef)
+
+	return dest
+}
+
+func getAlphaBuildSource(src BuildSpec) v1alpha1.Source {
 	source := v1alpha1.Source{}
 	var credentials corev1.LocalObjectReference
 	var revision *string

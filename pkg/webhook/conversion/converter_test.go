@@ -50,7 +50,7 @@ var _ = Describe("ConvertCRD", func() {
 		var apiVersion = "apiextensions.k8s.io/v1"
 		var desiredAPIVersion = "shipwright.io/v1alpha1"
 
-		It("converts for source OCIArtifacts type", func() {
+		It("converts for spec source OCIArtifacts type", func() {
 			ctxDir := "docker-build"
 			image := "dockerhub/foobar/hello"
 			pruneOption := "AfterPull"
@@ -98,7 +98,7 @@ request:
 			Expect(build.Spec.Source.ContextDir).To(Equal(&ctxDir))
 			Expect(build.Spec.Source.Revision).To(BeNil())
 		})
-		It("converts for source GitSource type", func() {
+		It("converts for spec source GitSource type", func() {
 			ctxDir := "docker-build"
 			url := "https://github.com/shipwright-io/sample-go"
 			revision := "main"

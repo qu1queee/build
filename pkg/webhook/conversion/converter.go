@@ -24,7 +24,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 	convertedObject := Object.DeepCopy()
 	fromVersion := Object.GetAPIVersion()
 
-	if fromVersion == "shipwright.io/v1alpha1" {
+	if fromVersion == toVersion {
 		ctxlog.Info(ctx, "nothing to convert")
 		return convertedObject, statusSucceed()
 	}
@@ -50,6 +50,36 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				build.ConvertTo(&buildAlpha)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildAlpha)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed structuring the newObject")
+				}
+				convertedObject.Object = mapito
+
+			} else {
+				return nil, statusErrorWithMessage("unsupported Kind")
+			}
+		default:
+			return nil, statusErrorWithMessage("unexpected conversion version to %q", toVersion)
+		}
+	case "shipwright.io/v1alpha1":
+		switch toVersion {
+		case "shipwright.io/v1beta1":
+			if convertedObject.Object["kind"] == "Build" {
+
+				// Convert the unstructured object to cluster.
+				unstructured := convertedObject.UnstructuredContent()
+				var buildAlpha v1alpha1.Build
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildAlpha)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed unstructuring the convertedObject")
+				}
+				var buildBeta v1beta1.Build
+
+				buildBeta.TypeMeta = buildAlpha.TypeMeta
+				buildBeta.TypeMeta.APIVersion = "shipwright.io/v1alpha1"
+				buildBeta.ConvertFrom(&buildAlpha)
+
+				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildBeta)
 				if err != nil {
 					ctxlog.Error(ctx, err, "failed structuring the newObject")
 				}
