@@ -5,20 +5,55 @@
 package v1beta1
 
 import (
+	"context"
+
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	"github.com/shipwright-io/build/pkg/ctxlog"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
-// ConvertTo converts this Build to the receiver APIVersion
-func (src *Build) ConvertTo(bs *v1alpha1.Build) error {
+const (
+	BETA_GROUP_VERSION  = "shipwright.io/v1beta1"
+	ALPHA_GROUP_VERSION = "shipwright.io/v1alpha1"
+)
+
+func (src *Build) ConvertTo(ctx context.Context, obj *unstructured.Unstructured) error {
+	var bs v1alpha1.Build
+
+	bs.TypeMeta = src.TypeMeta
+	bs.TypeMeta.APIVersion = ALPHA_GROUP_VERSION
+
 	bs.ObjectMeta = src.ObjectMeta
-	return src.Spec.ConvertTo(&bs.Spec)
+
+	src.Spec.ConvertTo(&bs.Spec)
+	mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&bs)
+	if err != nil {
+		ctxlog.Error(ctx, err, "failed structuring the newObject")
+	}
+	obj.Object = mapito
+
+	return nil
+
 }
 
-// ConvertFrom converts this Build to the implementer object APIVersion
-func (src *Build) ConvertFrom(bs *v1alpha1.Build) error {
+func (src *Build) ConvertFrom(ctx context.Context, obj *unstructured.Unstructured) error {
+
+	var bs v1alpha1.Build
+
+	unstructured := obj.UnstructuredContent()
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &bs)
+	if err != nil {
+		ctxlog.Error(ctx, err, "failed unstructuring the convertedObject")
+	}
 	src.ObjectMeta = bs.ObjectMeta
-	return src.Spec.ConvertFrom(&bs.Spec)
+	src.TypeMeta = bs.TypeMeta
+	src.TypeMeta.APIVersion = BETA_GROUP_VERSION
+
+	src.Spec.ConvertFrom(&bs.Spec)
+
+	return nil
 }
 
 func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {

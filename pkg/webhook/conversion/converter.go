@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	"github.com/shipwright-io/build/pkg/ctxlog"
 
@@ -49,17 +48,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				if err != nil {
 					ctxlog.Error(ctx, err, "failed unstructuring the convertedObject")
 				}
-				var buildAlpha v1alpha1.Build
-
-				buildAlpha.TypeMeta = build.TypeMeta
-				buildAlpha.TypeMeta.APIVersion = ALPHA_GROUP_VERSION
-				build.ConvertTo(&buildAlpha)
-
-				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildAlpha)
-				if err != nil {
-					ctxlog.Error(ctx, err, "failed structuring the newObject")
-				}
-				convertedObject.Object = mapito
+				build.ConvertTo(ctx, convertedObject)
 
 			} else {
 				return nil, statusErrorWithMessage("unsupported Kind")
@@ -72,17 +61,9 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 		case BETA_GROUP_VERSION:
 			if convertedObject.Object[KIND] == BUILD_KIND {
 
-				unstructured := convertedObject.UnstructuredContent()
-				var buildAlpha v1alpha1.Build
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildAlpha)
-				if err != nil {
-					ctxlog.Error(ctx, err, "failed unstructuring the convertedObject")
-				}
 				var buildBeta v1beta1.Build
 
-				buildBeta.TypeMeta = buildAlpha.TypeMeta
-				buildBeta.TypeMeta.APIVersion = BETA_GROUP_VERSION
-				buildBeta.ConvertFrom(&buildAlpha)
+				buildBeta.ConvertFrom(ctx, convertedObject)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildBeta)
 				if err != nil {
