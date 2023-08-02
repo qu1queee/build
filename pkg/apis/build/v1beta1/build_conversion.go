@@ -9,21 +9,21 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// ConvertTo converts this Build to the Hub version (v1alpha1)
+// ConvertTo converts this Build to the receiver APIVersion
 func (src *Build) ConvertTo(bs *v1alpha1.Build) error {
 	bs.ObjectMeta = src.ObjectMeta
 	return src.Spec.ConvertTo(&bs.Spec)
 }
 
+// ConvertFrom converts this Build to the implementer object APIVersion
 func (src *Build) ConvertFrom(bs *v1alpha1.Build) error {
 	src.ObjectMeta = bs.ObjectMeta
 	return src.Spec.ConvertFrom(&bs.Spec)
 }
 
 func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
-
+	// Handle BuildSpec Source
 	specSource := Source{}
-
 	if orig.Source.BundleContainer != nil {
 		specSource.Type = OCIArtifactType
 		specSource.OCIArtifact = &OCIArtifact{
@@ -41,12 +41,10 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 			specSource.GitSource.CloneSecret = &orig.Source.Credentials.Name
 		}
 	}
-
 	specSource.ContextDir = orig.Source.ContextDir
-
 	dest.Source = specSource
 
-	// Triggers
+	// Handle BuildSpec Triggers
 	if orig.Trigger != nil {
 		dest.Trigger = &Trigger{}
 		for _, t := range orig.Trigger.When {
@@ -58,21 +56,21 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 		}
 	}
 
-	// Strategy
+	// Handle BuildSpec Strategy
 	dest.Strategy = Strategy{
 		Name:       orig.StrategyName(),
 		Kind:       (*BuildStrategyKind)(orig.Strategy.Kind),
 		APIVersion: orig.Strategy.APIVersion,
 	}
 
-	// BuildSpec ParamValues
+	// Handle BuildSpec ParamValues
 	dest.ParamValues = []ParamValue{}
 	for _, p := range orig.ParamValues {
 		new := convertBetaParamValue(p)
 		dest.ParamValues = append(dest.ParamValues, new)
 	}
 
-	// BuildSpec Output
+	// Handle BuildSpec Output
 	dest.Output.Image = orig.Output.Image
 	if orig.Output.Credentials != nil {
 		dest.Output.PushSecret = &orig.Output.Credentials.Name
@@ -81,13 +79,13 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 	dest.Output.Annotations = orig.Output.Annotations
 	dest.Output.Labels = orig.Output.Labels
 
-	// BuildSpec Timeout
+	// Handle BuildSpec Timeout
 	dest.Timeout = orig.Timeout
 
-	// BuildSpec Env
+	// Handle BuildSpec Env
 	dest.Env = orig.Env
 
-	// BuildSpec Retention
+	// Handle BuildSpec Retention
 	dest.Retention = &BuildRetention{}
 	if orig.Retention != nil {
 		if orig.Retention.FailedLimit != nil {
@@ -104,7 +102,7 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 		}
 	}
 
-	// BuildSpec Volumes
+	// Handle BuildSpec Volumes
 	dest.Volumes = []BuildVolume{}
 	for _, vol := range orig.Volumes {
 		aux := BuildVolume{
@@ -118,15 +116,15 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 }
 
 func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
-	// BuildSpec Source
+	// Handle BuildSpec Source
 	bs.Source = getAlphaBuildSource(*srcSpec)
 
-	// BuildSpec Trigger
+	// Handle BuildSpec Trigger
 	if srcSpec.Trigger != nil {
 		bs.Trigger = &v1alpha1.Trigger{}
 		for _, t := range srcSpec.Trigger.When {
 			tw := v1alpha1.TriggerWhen{}
-			t.convertTo(&tw)
+			t.convertToAlpha(&tw)
 			bs.Trigger.When = append(bs.Trigger.When, tw)
 		}
 		if srcSpec.Trigger.TriggerSecret != nil {
@@ -134,28 +132,28 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 		}
 	}
 
-	// BuildSpec Strategy
+	// Handle BuildSpec Strategy
 	bs.Strategy = v1alpha1.Strategy{
 		Name:       srcSpec.StrategyName(),
 		Kind:       (*v1alpha1.BuildStrategyKind)(srcSpec.Strategy.Kind),
 		APIVersion: srcSpec.Strategy.APIVersion,
 	}
 
-	// BuildSpec Builder, no migration possible
+	// Handle BuildSpec Builder, TODO
 	bs.Builder = nil
 
-	// BuildSpec Dockerfile, no migration possible
+	// Handle BuildSpec Dockerfile, TODO
 	bs.Dockerfile = nil
 
-	// BuildSpec ParamValues
+	// Handle BuildSpec ParamValues
 	bs.ParamValues = nil
 	for _, p := range srcSpec.ParamValues {
 		new := v1alpha1.ParamValue{}
-		p.convertTo(&new)
+		p.convertToAlpha(&new)
 		bs.ParamValues = append(bs.ParamValues, new)
 	}
 
-	// BuildSpec Output
+	// Handle BuildSpec Output
 	insecure := false
 	bs.Output.Image = srcSpec.Output.Image
 	bs.Output.Insecure = &insecure
@@ -166,13 +164,13 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	bs.Output.Annotations = srcSpec.Output.Annotations
 	bs.Output.Labels = srcSpec.Output.Labels
 
-	// BuildSpec Timeout
+	// Handle BuildSpec Timeout
 	bs.Timeout = srcSpec.Timeout
 
-	// BuildSpec Env
+	// Handle BuildSpec Env
 	bs.Env = srcSpec.Env
 
-	// BuildSpec Retention
+	// Handle BuildSpec Retention
 	bs.Retention = &v1alpha1.BuildRetention{}
 	if srcSpec.Retention != nil && srcSpec.Retention.FailedLimit != nil {
 		bs.Retention.FailedLimit = srcSpec.Retention.FailedLimit
@@ -188,7 +186,7 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 		bs.Retention.TTLAfterSucceeded = srcSpec.Retention.TTLAfterSucceeded
 	}
 
-	// BuildSpec Volumes
+	// Handle BuildSpec Volumes
 	bs.Volumes = []v1alpha1.BuildVolume{}
 	for _, vol := range srcSpec.Volumes {
 		aux := v1alpha1.BuildVolume{
@@ -201,7 +199,7 @@ func (srcSpec *BuildSpec) ConvertTo(bs *v1alpha1.BuildSpec) error {
 	return nil
 }
 
-func (p ParamValue) convertTo(dest *v1alpha1.ParamValue) {
+func (p ParamValue) convertToAlpha(dest *v1alpha1.ParamValue) {
 
 	if p.SingleValue != nil && p.SingleValue.Value != nil {
 		dest.SingleValue = &v1alpha1.SingleValue{}
@@ -227,7 +225,7 @@ func (p ParamValue) convertTo(dest *v1alpha1.ParamValue) {
 	}
 }
 
-func (p TriggerWhen) convertTo(dest *v1alpha1.TriggerWhen) {
+func (p TriggerWhen) convertToAlpha(dest *v1alpha1.TriggerWhen) {
 	dest.Name = p.Name
 	dest.Type = v1alpha1.TriggerType(p.Type)
 

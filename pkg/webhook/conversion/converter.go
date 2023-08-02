@@ -16,8 +16,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// convertSHPCR takes an unstructured object with certain CR apiversion, parse it to a know Object type,
-// modify the type to a desired version of that type, and convert it again to unstructured
+const (
+	BETA_GROUP_VERSION  = "shipwright.io/v1beta1"
+	ALPHA_GROUP_VERSION = "shipwright.io/v1alpha1"
+	BUILD_KIND          = "Build"
+	KIND                = "kind"
+)
+
+// convertSHPCR takes an unstructured object with certain CR apiversion, parses it to a known Object type,
+// modify the type to a desired version of that type, and converts it back to unstructured
 func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx context.Context) (*unstructured.Unstructured, metav1.Status) {
 	ctxlog.Info(ctx, "converting custom resource")
 
@@ -30,13 +37,12 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 	}
 
 	switch Object.GetAPIVersion() {
-	case "shipwright.io/v1beta1":
+	case BETA_GROUP_VERSION:
 		switch toVersion {
 
-		case "shipwright.io/v1alpha1":
-			if convertedObject.Object["kind"] == "Build" {
+		case ALPHA_GROUP_VERSION:
+			if convertedObject.Object[KIND] == BUILD_KIND {
 
-				// Convert the unstructured object to cluster.
 				unstructured := convertedObject.UnstructuredContent()
 				var build v1beta1.Build
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &build)
@@ -46,7 +52,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				var buildAlpha v1alpha1.Build
 
 				buildAlpha.TypeMeta = build.TypeMeta
-				buildAlpha.TypeMeta.APIVersion = "shipwright.io/v1alpha1"
+				buildAlpha.TypeMeta.APIVersion = ALPHA_GROUP_VERSION
 				build.ConvertTo(&buildAlpha)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildAlpha)
@@ -61,12 +67,11 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 		default:
 			return nil, statusErrorWithMessage("unexpected conversion version to %q", toVersion)
 		}
-	case "shipwright.io/v1alpha1":
+	case ALPHA_GROUP_VERSION:
 		switch toVersion {
-		case "shipwright.io/v1beta1":
-			if convertedObject.Object["kind"] == "Build" {
+		case BETA_GROUP_VERSION:
+			if convertedObject.Object[KIND] == BUILD_KIND {
 
-				// Convert the unstructured object to cluster.
 				unstructured := convertedObject.UnstructuredContent()
 				var buildAlpha v1alpha1.Build
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildAlpha)
@@ -76,7 +81,7 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				var buildBeta v1beta1.Build
 
 				buildBeta.TypeMeta = buildAlpha.TypeMeta
-				buildBeta.TypeMeta.APIVersion = "shipwright.io/v1alpha1"
+				buildBeta.TypeMeta.APIVersion = BETA_GROUP_VERSION
 				buildBeta.ConvertFrom(&buildAlpha)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildBeta)

@@ -46,16 +46,20 @@ func getConversionReview(o string) (apiextensionsv1.ConversionReview, error) {
 }
 
 var _ = Describe("ConvertCRD", func() {
-	Context("for a Build CR from v1beta1 to v1alpha1", func() {
 
-		var apiVersion = "apiextensions.k8s.io/v1"
+	// common values accross test cases
+	var ctxDir = "docker-build"
+	var apiVersion = "apiextensions.k8s.io/v1"
+	var image = "dockerhub/foobar/hello"
+	var secretName = "foobar"
+	var url = "https://github.com/shipwright-io/sample-go"
+	var revision = "main"
+
+	Context("for a Build CR from v1beta1 to v1alpha1", func() {
 		var desiredAPIVersion = "shipwright.io/v1alpha1"
 
 		It("converts for spec source OCIArtifacts type", func() {
-			ctxDir := "docker-build"
-			image := "dockerhub/foobar/hello"
 			pruneOption := "AfterPull"
-			secretName := "foobar"
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -100,10 +104,6 @@ request:
 			Expect(build.Spec.Source.Revision).To(BeNil())
 		})
 		It("converts for spec source GitSource type", func() {
-			ctxDir := "docker-build"
-			url := "https://github.com/shipwright-io/sample-go"
-			revision := "main"
-			secretName := "foobar"
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -275,8 +275,6 @@ request:
 			Expect(len(build.Spec.ParamValues[1].Values)).To(Equal(3))
 		})
 		It("converts for spec output", func() {
-			img := "image-registry.openshift-image-registry"
-			secretName := "foobar"
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -294,7 +292,7 @@ request:
           pushSecret: %s
 `
 			o := fmt.Sprintf(buildTemplate, apiVersion,
-				desiredAPIVersion, img, secretName)
+				desiredAPIVersion, image, secretName)
 
 			conversionReview, err := getConversionReview(o)
 			Expect(err).To(BeNil())
@@ -306,7 +304,7 @@ request:
 			build, err := toV1Alpha1BuildObject(convertedObj)
 			Expect(err).To(BeNil())
 
-			Expect(build.Spec.Output.Image).To(Equal(img))
+			Expect(build.Spec.Output.Image).To(Equal(image))
 			Expect(build.Spec.Output.Credentials.Name).To(Equal(secretName))
 		})
 		It("converts for spec retention and volumes", func() {
@@ -364,16 +362,10 @@ request:
 	})
 
 	Context("for a Build CR from v1alpha1 to v1beta1", func() {
-
-		var apiVersion = "apiextensions.k8s.io/v1"
 		var desiredAPIVersion = "shipwright.io/v1beta1"
 
 		It("converts for spec bundleContainer source type", func() {
-
-			ctxDir := "docker-build"
-			image := "foobar"
 			pruneOption := "Never"
-			creds := "fakesecret"
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -396,7 +388,7 @@ request:
 			o := fmt.Sprintf(buildTemplate, apiVersion,
 				desiredAPIVersion, ctxDir,
 				image, pruneOption,
-				creds)
+				secretName)
 
 			conversionReview, err := getConversionReview(o)
 
@@ -410,16 +402,12 @@ request:
 			Expect(err).To(BeNil())
 
 			Expect(build.Spec.Source.Type).To(Equal(v1beta1.OCIArtifactType))
-			Expect(build.Spec.Source.OCIArtifact.PullSecret).To(Equal(&creds))
+			Expect(build.Spec.Source.OCIArtifact.PullSecret).To(Equal(&secretName))
 			Expect(build.Spec.Source.OCIArtifact.Image).To(Equal(image))
 			Expect(build.Spec.Source.ContextDir).To(Equal(&ctxDir))
 		})
-		It("converts for spec url source type", func() {
 
-			ctxDir := "docker-build"
-			revision := "maain"
-			url := "foobar"
-			creds := "fakesecret"
+		It("converts for spec url source type", func() {
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -441,7 +429,7 @@ request:
 			o := fmt.Sprintf(buildTemplate, apiVersion,
 				desiredAPIVersion, ctxDir,
 				revision, url,
-				creds)
+				secretName)
 
 			conversionReview, err := getConversionReview(o)
 
@@ -455,11 +443,12 @@ request:
 			Expect(err).To(BeNil())
 
 			Expect(build.Spec.Source.Type).To(Equal(v1beta1.GitType))
-			Expect(build.Spec.Source.GitSource.CloneSecret).To(Equal(&creds))
+			Expect(build.Spec.Source.GitSource.CloneSecret).To(Equal(&secretName))
 			Expect(build.Spec.Source.GitSource.URL).To(Equal(&url))
 			Expect(build.Spec.Source.GitSource.Revision).To(Equal(&revision))
 			Expect(build.Spec.Source.ContextDir).To(Equal(&ctxDir))
 		})
+
 		It("converts for spec triggers", func() {
 			ttype := "GitHub"
 			event := "Push"
@@ -511,6 +500,7 @@ request:
 			Expect(build.Spec.Trigger.When[0].GitHub.Events).To(ContainElement(v1beta1.GitHubPushEvent))
 			Expect(build.Spec.Trigger.TriggerSecret).To(Equal(&secret))
 		})
+
 		It("converts for spec params", func() {
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
@@ -555,9 +545,8 @@ request:
 			Expect(len(build.Spec.ParamValues)).To(Equal(2))
 			Expect(len(build.Spec.ParamValues[1].Values)).To(Equal(3))
 		})
+
 		It("converts for spec output", func() {
-			img := "image-registry.openshift-image-registry"
-			secretName := "foobar"
 			buildTemplate := `kind: ConversionReview
 apiVersion: %s
 request:
@@ -576,7 +565,7 @@ request:
             name: %s
 `
 			o := fmt.Sprintf(buildTemplate, apiVersion,
-				desiredAPIVersion, img, secretName)
+				desiredAPIVersion, image, secretName)
 
 			conversionReview, err := getConversionReview(o)
 			Expect(err).To(BeNil())
@@ -588,7 +577,7 @@ request:
 			build, err := toV1Beta1BuildObject(convertedObj)
 			Expect(err).To(BeNil())
 
-			Expect(build.Spec.Output.Image).To(Equal(img))
+			Expect(build.Spec.Output.Image).To(Equal(image))
 			Expect(build.Spec.Output.PushSecret).To(Equal(&secretName))
 		})
 	})

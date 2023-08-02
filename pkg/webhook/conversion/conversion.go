@@ -52,12 +52,14 @@ type mediaType struct {
 // convertFunc serves as the Custom Resource conversiob function
 type convertFunc func(Object *unstructured.Unstructured, version string, ctx context.Context) (*unstructured.Unstructured, metav1.Status)
 
+// CRDConvertHandler is a handle func for the /convert endpoint
 func CRDConvertHandler(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		CRDConvert(w, r, ctx)
 	}
 }
 
+// CRDConvert serves the /convert endpoint by passing an additional argument(ctx)
 func CRDConvert(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	serve(w, r, convertSHPCR, ctx)
 }
@@ -90,17 +92,19 @@ func serve(w http.ResponseWriter, r *http.Request, convert convertFunc, ctx cont
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
+
 	var responseObj runtime.Object
+
 	switch *gvk {
 	case v1.SchemeGroupVersion.WithKind("ConversionReview"):
 		convertReview, ok := obj.(*v1.ConversionReview)
 		if !ok {
 			msg := fmt.Sprintf("Expected v1beta1.ConversionReview but got: %T", obj)
-			ctxlog.Error(ctx, errors.New(msg), "unexpected kind")
+			ctxlog.Error(ctx, errors.New(msg), msg)
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
-		convertReview.Response = doConversionToV1alpha1(convertReview.Request, convert, ctx)
+		convertReview.Response = doConversion(convertReview.Request, convert, ctx)
 		convertReview.Response.UID = convertReview.Request.UID
 		ctxlog.Info(ctx, fmt.Sprintf("sending response: %v", convertReview.Response))
 
@@ -108,7 +112,7 @@ func serve(w http.ResponseWriter, r *http.Request, convert convertFunc, ctx cont
 		responseObj = convertReview
 	default:
 		msg := fmt.Sprintf("Unsupported group version kind: %v", gvk)
-		ctxlog.Error(ctx, errors.New(msg), "unknown group/version/kind")
+		ctxlog.Error(ctx, errors.New(msg), msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -117,7 +121,7 @@ func serve(w http.ResponseWriter, r *http.Request, convert convertFunc, ctx cont
 	outSerializer := getOutputSerializer(accept)
 	if outSerializer == nil {
 		msg := fmt.Sprintf("invalid accept header `%s`", accept)
-		ctxlog.Error(ctx, errors.New(msg), "invalid header")
+		ctxlog.Error(ctx, errors.New(msg), msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -155,9 +159,9 @@ func getOutputSerializer(accept string) runtime.Serializer {
 	return nil
 }
 
-// doConversionToV1alpha1 takes the v1beta1 CR in the v1 ConversionRequest using the convert function
-// and returns a ConversionResponse with a v1alpha1 CR
-func doConversionToV1alpha1(convertRequest *v1.ConversionRequest, convert convertFunc, ctx context.Context) *v1.ConversionResponse {
+// doConversion takes a CR in the v1 ConversionRequest using the convert function
+// and returns a ConversionResponse with a CR
+func doConversion(convertRequest *v1.ConversionRequest, convert convertFunc, ctx context.Context) *v1.ConversionResponse {
 	var convertedObjects []runtime.RawExtension
 	for _, obj := range convertRequest.Objects {
 		cr := unstructured.Unstructured{}
@@ -172,7 +176,7 @@ func doConversionToV1alpha1(convertRequest *v1.ConversionRequest, convert conver
 		}
 		convertedCR, status := convert(&cr, convertRequest.DesiredAPIVersion, ctx)
 		if status.Status != metav1.StatusSuccess {
-			ctxlog.Error(ctx, errors.New(status.String()), "status is not success")
+			ctxlog.Error(ctx, errors.New(status.String()), "status is not Success")
 			return &v1.ConversionResponse{
 				Result: status,
 			}
