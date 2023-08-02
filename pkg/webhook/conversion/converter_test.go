@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	"github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	"github.com/shipwright-io/build/pkg/webhook/conversion"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -364,6 +365,232 @@ request:
 
 	Context("for a Build CR from v1alpha1 to v1beta1", func() {
 
+		var apiVersion = "apiextensions.k8s.io/v1"
+		var desiredAPIVersion = "shipwright.io/v1beta1"
+
+		It("converts for spec bundleContainer source type", func() {
+
+			ctxDir := "docker-build"
+			image := "foobar"
+			pruneOption := "Never"
+			creds := "fakesecret"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+    - apiVersion: shipwright.io/v1alpha1
+      kind: Build
+      metadata:
+        name: buildkit-build
+      spec:
+        source:
+          contextDir: %s
+          bundleContainer:
+            image: %s
+            prune: %s
+          credentials:
+            name: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, ctxDir,
+				image, pruneOption,
+				creds)
+
+			conversionReview, err := getConversionReview(o)
+
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			build, err := toV1Beta1BuildObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(build.Spec.Source.Type).To(Equal(v1beta1.OCIArtifactType))
+			Expect(build.Spec.Source.OCIArtifact.PullSecret).To(Equal(&creds))
+			Expect(build.Spec.Source.OCIArtifact.Image).To(Equal(image))
+			Expect(build.Spec.Source.ContextDir).To(Equal(&ctxDir))
+		})
+		It("converts for spec url source type", func() {
+
+			ctxDir := "docker-build"
+			revision := "maain"
+			url := "foobar"
+			creds := "fakesecret"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+  - apiVersion: shipwright.io/v1alpha1
+    kind: Build
+    metadata:
+      name: buildkit-build
+    spec:
+      source:
+        contextDir: %s
+        revision: %s
+        url: %s
+        credentials:
+          name: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, ctxDir,
+				revision, url,
+				creds)
+
+			conversionReview, err := getConversionReview(o)
+
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			build, err := toV1Beta1BuildObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(build.Spec.Source.Type).To(Equal(v1beta1.GitType))
+			Expect(build.Spec.Source.GitSource.CloneSecret).To(Equal(&creds))
+			Expect(build.Spec.Source.GitSource.URL).To(Equal(&url))
+			Expect(build.Spec.Source.GitSource.Revision).To(Equal(&revision))
+			Expect(build.Spec.Source.ContextDir).To(Equal(&ctxDir))
+		})
+		It("converts for spec triggers", func() {
+			ttype := "GitHub"
+			event := "Push"
+			branch_01 := "main"
+			branch_02 := "develop"
+			secret := "foobar"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+  - apiVersion: shipwright.io/v1alpha1
+    kind: Build
+    metadata:
+      name: buildkit-build
+    spec:
+      trigger:
+        when:
+        - name:
+          type: %s
+          github:
+            events:
+            - %s
+            branches:
+            - %s
+            - %s
+        secretRef:
+          name: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, ttype,
+				event, branch_01,
+				branch_02, secret)
+
+			conversionReview, err := getConversionReview(o)
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			build, err := toV1Beta1BuildObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(build.Spec.Trigger.When[0].Type).To(Equal(v1beta1.GitHubWebHookTrigger))
+
+			Expect(build.Spec.Trigger.When[0].GitHub.Branches).To(ContainElements(branch_01, branch_02))
+			Expect(build.Spec.Trigger.When[0].GitHub.Events).To(ContainElement(v1beta1.GitHubPushEvent))
+			Expect(build.Spec.Trigger.TriggerSecret).To(Equal(&secret))
+		})
+		It("converts for spec params", func() {
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+    - apiVersion: shipwright.io/v1alpha1
+      kind: Build
+      metadata:
+        name: buildkit-build
+      spec:
+        paramValues:
+        - name: foo1
+          value: disabled
+        - name: foo1
+          values:
+          - value: NODE_VERSION=16
+          - configMapValue:
+              name: project-configuration
+              key: node-version
+              format: NODE_VERSION=${CONFIGMAP_VALUE}
+          - secretValue:
+              name: npm-registry-access
+              key: npm-auth-token
+              format: NPM_AUTH_TOKEN=${SECRET_VALUE}
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion)
+
+			conversionReview, err := getConversionReview(o)
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			build, err := toV1Beta1BuildObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			// we could extend here the assertions, keeping it simple for now
+			Expect(len(build.Spec.ParamValues)).To(Equal(2))
+			Expect(len(build.Spec.ParamValues[1].Values)).To(Equal(3))
+		})
+		It("converts for spec output", func() {
+			img := "image-registry.openshift-image-registry"
+			secretName := "foobar"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+    - apiVersion: shipwright.io/v1alpha1
+      kind: Build
+      metadata:
+        name: buildkit-build
+      spec:
+        timeout: 10m
+        output:
+          image: %s
+          credentials:
+            name: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, img, secretName)
+
+			conversionReview, err := getConversionReview(o)
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			build, err := toV1Beta1BuildObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(build.Spec.Output.Image).To(Equal(img))
+			Expect(build.Spec.Output.PushSecret).To(Equal(&secretName))
+		})
 	})
 })
 
@@ -386,3 +613,18 @@ func toV1Alpha1BuildObject(convertedObject unstructured.Unstructured) (v1alpha1.
 	}
 	return build, nil
 }
+
+func toV1Beta1BuildObject(convertedObject unstructured.Unstructured) (v1beta1.Build, error) {
+	var build v1beta1.Build
+	u := convertedObject.UnstructuredContent()
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u, &build); err != nil {
+		return build, err
+	}
+	return build, nil
+}
+
+/**
+* TODO's:
+* - in the Build resource, replace the build.shipwright.io/build-run-deletion annotation in favor of .spec.retention.atBuildDeletion.
+* - in the Build resource, deprecate .spec.dockerfile, we should convert if a given param under DOCKERFILE is available
+**/

@@ -34,9 +34,11 @@ func (dest *BuildSpec) ConvertFrom(orig *v1alpha1.BuildSpec) error {
 	} else {
 		specSource.Type = GitType
 		specSource.GitSource = &Git{
-			URL:         orig.Source.URL,
-			Revision:    orig.Source.Revision,
-			CloneSecret: &orig.Source.Credentials.Name,
+			URL:      orig.Source.URL,
+			Revision: orig.Source.Revision,
+		}
+		if orig.Source.Credentials != nil {
+			specSource.GitSource.CloneSecret = &orig.Source.Credentials.Name
 		}
 	}
 
