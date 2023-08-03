@@ -9,6 +9,7 @@ import (
 
 	"github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	"github.com/shipwright-io/build/pkg/ctxlog"
+	"github.com/shipwright-io/build/pkg/webhook"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -18,6 +19,9 @@ const (
 	BETA_GROUP_VERSION  = "shipwright.io/v1beta1"
 	ALPHA_GROUP_VERSION = "shipwright.io/v1alpha1"
 )
+
+// ensure v1beta1 implements the Conversion interface
+var _ webhook.Conversion = (*Build)(nil)
 
 func (src *Build) ConvertTo(ctx context.Context, obj *unstructured.Unstructured) error {
 	var bs v1alpha1.Build
@@ -52,6 +56,12 @@ func (src *Build) ConvertFrom(ctx context.Context, obj *unstructured.Unstructure
 	src.TypeMeta.APIVersion = BETA_GROUP_VERSION
 
 	src.Spec.ConvertFrom(&bs.Spec)
+
+	src.Status = BuildStatus{
+		Registered: bs.Status.Registered,
+		Reason:     (*BuildReason)(bs.Status.Reason),
+		Message:    bs.Status.Message,
+	}
 
 	return nil
 }
