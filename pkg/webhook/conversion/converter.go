@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	"github.com/shipwright-io/build/pkg/ctxlog"
 
@@ -19,6 +20,7 @@ const (
 	BETA_GROUP_VERSION  = "shipwright.io/v1beta1"
 	ALPHA_GROUP_VERSION = "shipwright.io/v1alpha1"
 	BUILD_KIND          = "Build"
+	BUILDRUN_KIND       = "BuildRun"
 	KIND                = "kind"
 )
 
@@ -37,21 +39,35 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 
 	switch Object.GetAPIVersion() {
 	case BETA_GROUP_VERSION:
+		spew.Dump("perrooooo")
+		spew.Dump(convertedObject)
 		switch toVersion {
 
 		case ALPHA_GROUP_VERSION:
+			spew.Dump("perroooo222o")
+			spew.Dump(convertedObject)
 			if convertedObject.Object[KIND] == BUILD_KIND {
 
 				unstructured := convertedObject.UnstructuredContent()
 				var build v1beta1.Build
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &build)
 				if err != nil {
-					ctxlog.Error(ctx, err, "failed unstructuring the convertedObject")
+					ctxlog.Error(ctx, err, "failed unstructuring the build convertedObject")
 				}
 				build.ConvertTo(ctx, convertedObject)
 
+			} else if convertedObject.Object[KIND] == BUILDRUN_KIND {
+				spew.Dump("mucho viento")
+				unstructured := convertedObject.UnstructuredContent()
+				var buildRun v1beta1.BuildRun
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildRun)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed unstructuring the buildRun convertedObject")
+				}
+				buildRun.ConvertTo(ctx, convertedObject)
+
 			} else {
-				return nil, statusErrorWithMessage("unsupported Kind")
+				return nil, statusErrorWithMessage("unsupporteddda skdksdjkjsd Kind")
 			}
 		default:
 			return nil, statusErrorWithMessage("unexpected conversion version to %q", toVersion)
@@ -71,6 +87,16 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				}
 				convertedObject.Object = mapito
 
+			} else if convertedObject.Object[KIND] == BUILDRUN_KIND {
+				var buildRunBeta v1beta1.BuildRun
+
+				buildRunBeta.ConvertFrom(ctx, convertedObject)
+
+				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildRunBeta)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed structuring the newObject")
+				}
+				convertedObject.Object = mapito
 			} else {
 				return nil, statusErrorWithMessage("unsupported Kind")
 			}

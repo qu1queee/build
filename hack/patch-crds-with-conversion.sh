@@ -34,3 +34,8 @@ echo "[INFO] Going to patch the Build CRD"
 $TARGET_DIR/spruce merge $DIR/hack/customization/conversion_webhook_block.yaml $DIR/deploy/crds/shipwright.io_builds.yaml > /tmp/shipwright.io_builds.yaml
 mv /tmp/shipwright.io_builds.yaml "${DIR}"/deploy/crds/shipwright.io_builds.yaml
 echo "[INFO] Build CRD successfully patched"
+
+echo "[INFO] Going to patch the BuildRun CRD"
+$TARGET_DIR/spruce merge $DIR/hack/customization/conversion_webhook_block.yaml $DIR/deploy/crds/shipwright.io_buildruns.yaml > /tmp/shipwright.io_buildruns.yaml
+mv /tmp/shipwright.io_buildruns.yaml "${DIR}"/deploy/crds/shipwright.io_buildruns.yaml
+echo "[INFO] Build CRD successfully patched"
