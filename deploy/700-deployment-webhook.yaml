@@ -22,6 +22,8 @@ spec:
       labels:
         name: shp-build-webhook
     spec:
+      securityContext:
+        runAsNonRoot: true
       serviceAccountName: shipwright-build-webhook
       containers:
       - name:  shp-build-webhook
@@ -33,6 +35,16 @@ spec:
         ports:
         - containerPort: 8443
           name: https-port
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       volumes:
         - name: webhook-certs
           secret:
