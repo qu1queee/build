@@ -84,11 +84,14 @@ func (src *BuildRun) ConvertTo(ctx context.Context, obj *unstructured.Unstructur
 	bs.Spec.Retention = (*v1alpha1.BuildRunRetention)(src.Spec.Retention)
 
 	// BuildRunSpec Volumes
-	for i, vol := range src.Spec.Volumes {
-		bs.Spec.Volumes[i].Name = vol.Name
-		bs.Spec.Volumes[i].VolumeSource = vol.VolumeSource
-
+	bs.Spec.Volumes = []v1alpha1.BuildVolume{}
+	for _, vol := range src.Spec.Volumes {
+		bs.Spec.Volumes = append(bs.Spec.Volumes, v1alpha1.BuildVolume{
+			Name:         vol.Name,
+			VolumeSource: vol.VolumeSource,
+		})
 	}
+
 	mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&bs)
 	if err != nil {
 		ctxlog.Error(ctx, err, "failed structuring the newObject")
@@ -116,7 +119,44 @@ func (src *BuildRun) ConvertFrom(ctx context.Context, obj *unstructured.Unstruct
 
 	src.Spec.ConvertFrom(&br.Spec)
 
-	// src.Status = BuildRunStatus{}
+	sources := []SourceResult{}
+	for _, s := range br.Status.Sources {
+		sr := SourceResult{
+			Name:        s.Name,
+			Git:         (*GitSourceResult)(s.Git),
+			OciArtifact: (*OciArtifactSourceResult)(s.Bundle),
+		}
+		sources = append(sources, sr)
+	}
+
+	conditions := []Condition{}
+
+	for _, c := range br.Status.Conditions {
+		ct := Condition{
+			Type:               Type(c.Type),
+			Status:             c.Status,
+			LastTransitionTime: c.LastTransitionTime,
+			Reason:             c.Reason,
+			Message:            c.Message,
+		}
+		conditions = append(conditions, ct)
+	}
+
+	buildBeta := Build{}
+	if br.Status.BuildSpec != nil {
+		buildBeta.Spec.ConvertFrom(br.Status.BuildSpec)
+	}
+
+	src.Status = BuildRunStatus{
+		Sources:        sources,
+		Output:         (*Output)(br.Status.Output),
+		Conditions:     conditions,
+		TaskRunName:    br.Status.LatestTaskRunRef,
+		StartTime:      br.Status.StartTime,
+		CompletionTime: br.Status.CompletionTime,
+		BuildSpec:      &buildBeta.Spec,
+		FailureDetails: src.Status.FailureDetails,
+	}
 
 	return nil
 }
@@ -172,6 +212,5 @@ func (dest *BuildRunSpec) ConvertFrom(orig *v1alpha1.BuildRunSpec) error {
 		dest.Volumes[i].VolumeSource = vol.VolumeSource
 
 	}
-
 	return nil
 }

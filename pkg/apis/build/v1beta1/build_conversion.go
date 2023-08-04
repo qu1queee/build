@@ -357,7 +357,10 @@ func getAlphaBuildSource(src BuildSpec) v1alpha1.Source {
 
 	}
 
-	source.Credentials = &credentials
+	if credentials.Name != "" {
+		source.Credentials = &credentials
+	}
+
 	source.Revision = revision
 	source.ContextDir = src.Source.ContextDir
 

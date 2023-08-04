@@ -581,6 +581,124 @@ request:
 			Expect(build.Spec.Output.PushSecret).To(Equal(&secretName))
 		})
 	})
+
+	Context("for a BuildRun CR from v1beta1 to v1alpha1", func() {
+		var desiredAPIVersion = "shipwright.io/v1alpha1"
+
+		It("converts for spec Build", func() {
+			pruneOption := "AfterPull"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+    - apiVersion: shipwright.io/v1beta1
+      kind: BuildRun
+      metadata:
+        name: buildkit-run
+      spec:
+        build:
+          spec:
+            source:
+              type: OCI
+              contextDir: %s
+              ociArtifact:
+                image: %s
+                prune: %s
+                pullSecret: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, ctxDir,
+				image, pruneOption,
+				secretName)
+
+			conversionReview, err := getConversionReview(o)
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			buildRun, err := toV1Alpha1BuildRunObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(buildRun.Spec.BuildSpec.Source.Credentials.Name).To(Equal(secretName))
+			Expect(buildRun.Spec.BuildSpec.Source.BundleContainer.Image).To(Equal(image))
+			Expect(*buildRun.Spec.BuildSpec.Source.BundleContainer.Prune).To(Equal(v1alpha1.PruneAfterPull))
+			Expect(buildRun.Spec.BuildSpec.Source.ContextDir).To(Equal(&ctxDir))
+		})
+
+		It("converts for spec params, output, env, retention and volumes", func() {
+			refBuild := "buildkit-build"
+			sa := "foobar"
+			timeout := "10s"
+			ttl := "10m"
+			sizeLimit := "500Mi"
+			buildTemplate := `kind: ConversionReview
+apiVersion: %s
+request:
+  uid: 0000-0000-0000-0000
+  desiredAPIVersion: %s
+  objects:
+    - apiVersion: shipwright.io/v1beta1
+      kind: BuildRun
+      metadata:
+        name: buildkit-run
+      spec:
+        build:
+          name: %s
+        serviceAccount: %s
+        timeout: %s
+        paramValues:
+        - name: foobar
+          value: bar
+        output:
+          image: %s
+          pushSecret: %s
+          annotations:
+            foo: bar
+          labels:
+            foo2: bar2
+        env:
+        - name: one
+          value: two
+        retention:
+          ttlAfterFailed: %s
+        volumes:
+        - name: volume1
+          emptyDir:
+            sizeLimit: %s
+`
+			o := fmt.Sprintf(buildTemplate, apiVersion,
+				desiredAPIVersion, refBuild, sa, timeout,
+				image, secretName, ttl, sizeLimit)
+
+			conversionReview, err := getConversionReview(o)
+			Expect(err).To(BeNil())
+			Expect(conversionReview.Response.Result.Status).To(Equal(v1.StatusSuccess))
+
+			convertedObj, err := ToUnstructured(conversionReview)
+			Expect(err).To(BeNil())
+
+			buildRun, err := toV1Alpha1BuildRunObject(convertedObj)
+			Expect(err).To(BeNil())
+
+			Expect(buildRun.Spec.BuildRef.Name).To(Equal(refBuild))
+			Expect(*buildRun.Spec.ServiceAccount.Name).To(Equal(sa))
+			Expect(buildRun.Spec.Timeout.Duration).To(Equal(time.Duration(10 * time.Second)))
+			Expect(len(buildRun.Spec.ParamValues)).To(Equal(1))
+			Expect(buildRun.Spec.Output.Image).To(Equal(image))
+			Expect(buildRun.Spec.Output.Credentials.Name).To(Equal(secretName))
+			Expect(len(buildRun.Spec.Output.Annotations)).To(Equal(1))
+			Expect(len(buildRun.Spec.Output.Labels)).To(Equal(1))
+			Expect(len(buildRun.Spec.Env)).To(Equal(1))
+			Expect(buildRun.Spec.Env[0].Name).To(Equal("one"))
+			Expect(buildRun.Spec.Env[0].Value).To(Equal("two"))
+			Expect(buildRun.Spec.Retention.TTLAfterFailed.Duration).To(Equal(time.Duration(10 * time.Minute)))
+			Expect(buildRun.Spec.Volumes[0].Name).To(Equal("volume1"))
+		})
+	})
 })
 
 func ToUnstructured(conversionReview apiextensionsv1.ConversionReview) (unstructured.Unstructured, error) {
@@ -596,6 +714,15 @@ func ToUnstructured(conversionReview apiextensionsv1.ConversionReview) (unstruct
 
 func toV1Alpha1BuildObject(convertedObject unstructured.Unstructured) (v1alpha1.Build, error) {
 	var build v1alpha1.Build
+	u := convertedObject.UnstructuredContent()
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u, &build); err != nil {
+		return build, err
+	}
+	return build, nil
+}
+
+func toV1Alpha1BuildRunObject(convertedObject unstructured.Unstructured) (v1alpha1.BuildRun, error) {
+	var build v1alpha1.BuildRun
 	u := convertedObject.UnstructuredContent()
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u, &build); err != nil {
 		return build, err

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	"github.com/shipwright-io/build/pkg/ctxlog"
 
@@ -39,13 +38,9 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 
 	switch Object.GetAPIVersion() {
 	case BETA_GROUP_VERSION:
-		spew.Dump("perrooooo")
-		spew.Dump(convertedObject)
 		switch toVersion {
 
 		case ALPHA_GROUP_VERSION:
-			spew.Dump("perroooo222o")
-			spew.Dump(convertedObject)
 			if convertedObject.Object[KIND] == BUILD_KIND {
 
 				unstructured := convertedObject.UnstructuredContent()
@@ -57,7 +52,6 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				build.ConvertTo(ctx, convertedObject)
 
 			} else if convertedObject.Object[KIND] == BUILDRUN_KIND {
-				spew.Dump("mucho viento")
 				unstructured := convertedObject.UnstructuredContent()
 				var buildRun v1beta1.BuildRun
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildRun)
