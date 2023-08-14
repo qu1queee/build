@@ -191,6 +191,8 @@ func (dest *BuildRunSpec) ConvertFrom(orig *v1alpha1.BuildRunSpec) error {
 	dest.Output = &Image{}
 	if orig.Output != nil {
 		dest.Output.Image = orig.Output.Image
+		dest.Output.Annotations = orig.Output.Annotations
+		dest.Output.Labels = orig.Output.Labels
 	}
 
 	if orig.Output != nil && orig.Output.Credentials != nil {
@@ -207,10 +209,12 @@ func (dest *BuildRunSpec) ConvertFrom(orig *v1alpha1.BuildRunSpec) error {
 	dest.Retention = (*BuildRunRetention)(orig.Retention)
 
 	// BuildRunSpec Volumes
-	for i, vol := range orig.Volumes {
-		dest.Volumes[i].Name = vol.Name
-		dest.Volumes[i].VolumeSource = vol.VolumeSource
-
+	dest.Volumes = []BuildVolume{}
+	for _, vol := range orig.Volumes {
+		dest.Volumes = append(dest.Volumes, BuildVolume{
+			Name:         vol.Name,
+			VolumeSource: vol.VolumeSource,
+		})
 	}
 	return nil
 }

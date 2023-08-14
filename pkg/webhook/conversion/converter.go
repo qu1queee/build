@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	BETA_GROUP_VERSION  = "shipwright.io/v1beta1"
-	ALPHA_GROUP_VERSION = "shipwright.io/v1alpha1"
-	BUILD_KIND          = "Build"
-	BUILDRUN_KIND       = "BuildRun"
-	KIND                = "kind"
+	BETA_GROUP_VERSION        = "shipwright.io/v1beta1"
+	ALPHA_GROUP_VERSION       = "shipwright.io/v1alpha1"
+	BUILD_KIND                = "Build"
+	BUILDRUN_KIND             = "BuildRun"
+	BUILDSTRATEGY_KIND        = "BuildStrategy"
+	CLUSTERBUILDSTRATEGY_KIND = "ClusterBuildStrategy"
+	KIND                      = "kind"
 )
 
 // convertSHPCR takes an unstructured object with certain CR apiversion, parses it to a known Object type,
@@ -60,6 +62,23 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				}
 				buildRun.ConvertTo(ctx, convertedObject)
 
+			} else if convertedObject.Object[KIND] == BUILDSTRATEGY_KIND {
+				unstructured := convertedObject.UnstructuredContent()
+				var buildStrategy v1beta1.BuildStrategy
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &buildStrategy)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed unstructuring the buildStrategy convertedObject")
+				}
+				buildStrategy.ConvertTo(ctx, convertedObject)
+
+			} else if convertedObject.Object[KIND] == CLUSTERBUILDSTRATEGY_KIND {
+				unstructured := convertedObject.UnstructuredContent()
+				var clusterBuildStrategy v1beta1.ClusterBuildStrategy
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &clusterBuildStrategy)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed unstructuring the clusterBuildStrategy convertedObject")
+				}
+				clusterBuildStrategy.ConvertTo(ctx, convertedObject)
 			} else {
 				return nil, statusErrorWithMessage("unsupporteddda skdksdjkjsd Kind")
 			}
@@ -87,6 +106,27 @@ func convertSHPCR(Object *unstructured.Unstructured, toVersion string, ctx conte
 				buildRunBeta.ConvertFrom(ctx, convertedObject)
 
 				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildRunBeta)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed structuring the newObject")
+				}
+				convertedObject.Object = mapito
+			} else if convertedObject.Object[KIND] == BUILDSTRATEGY_KIND {
+				var buildStrategyBeta v1beta1.BuildStrategy
+
+				buildStrategyBeta.ConvertFrom(ctx, convertedObject)
+
+				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&buildStrategyBeta)
+				if err != nil {
+					ctxlog.Error(ctx, err, "failed structuring the newObject")
+				}
+				convertedObject.Object = mapito
+
+			} else if convertedObject.Object[KIND] == CLUSTERBUILDSTRATEGY_KIND {
+				var clusterBuildStrategyBeta v1beta1.ClusterBuildStrategy
+
+				clusterBuildStrategyBeta.ConvertFrom(ctx, convertedObject)
+
+				mapito, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&clusterBuildStrategyBeta)
 				if err != nil {
 					ctxlog.Error(ctx, err, "failed structuring the newObject")
 				}
