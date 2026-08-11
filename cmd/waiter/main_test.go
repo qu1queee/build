@@ -62,6 +62,19 @@ var _ = Describe("Waiter", func() {
 		close(doneCh)
 	}
 
+	When("quote is issued", func() {
+		var session *gexec.Session
+
+		BeforeEach(func() {
+			session = run("quote")
+		})
+
+		It("prints a ship and a build-related message", func() {
+			Eventually(session).Should(gbytes.Say("harbor|layers|Shipwright|digest|BuildRun|kubectl"))
+			Eventually(session).Should(gexec.Exit(0))
+		})
+	})
+
 	When("--help is passed", func() {
 		var session *gexec.Session
 

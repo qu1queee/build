@@ -22,3 +22,15 @@ And:
 ```sh
 waiter done
 ```
+
+Feeling patient? Try:
+
+```sh
+waiter quote
+```
+
+Or print a random build-related message while waiting:
+
+```sh
+waiter start --motd
+```

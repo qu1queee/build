@@ -15,6 +15,7 @@ import (
 type settings struct {
 	lockFile string        // path to lock file
 	timeout  time.Duration // how long wait for 'done'
+	motd     bool          // print a build quote while waiting
 }
 
 const longDesc = `
@@ -48,6 +49,7 @@ var (
 	rootCmd  = newRootCmd()
 	startCmd = newStartCmd()
 	doneCmd  = newDoneCmd()
+	quoteCmd = newQuoteCmd()
 )
 
 // defaultTimeout default timeout duration.
@@ -68,6 +70,7 @@ func init() {
 
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(doneCmd)
+	rootCmd.AddCommand(quoteCmd)
 }
 
 func newRootCmd() *cobra.Command {
@@ -79,13 +82,29 @@ func newRootCmd() *cobra.Command {
 }
 
 func newStartCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:          "start",
 		Short:        "Starts the wait, and holds until `done` is issued.",
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			w := NewWaiter(flagValues)
 			return w.Wait()
+		},
+	}
+
+	cmd.Flags().BoolVar(&flagValues.motd, "motd", false, "print a random build quote while waiting")
+
+	return cmd
+}
+
+func newQuoteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:          "quote",
+		Short:        "Print a random build-related message.",
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			printMotd()
+			return nil
 		},
 	}
 }

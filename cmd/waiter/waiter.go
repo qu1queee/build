@@ -64,6 +64,10 @@ func (w *Waiter) retry() error {
 
 // Wait wait for the lock-file to be removed, or timeout.
 func (w *Waiter) Wait() error {
+	if w.flagValues.motd {
+		printMotd()
+	}
+
 	pid := os.Getpid()
 	if err := w.save(pid); err != nil {
 		return err
